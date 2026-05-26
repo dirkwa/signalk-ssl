@@ -43,18 +43,37 @@ describe('signalk-ssl plugin lifecycle', () => {
     expect(() => {
       plugin.start({}, () => undefined)
     }).not.toThrow()
-    // Give the floating async initial issueIfNeeded a chance to settle.
-    await new Promise<void>((resolve) => {
-      setTimeout(resolve, 100)
-    })
+
     const debugSpy = app.debug as unknown as ReturnType<typeof vi.fn>
     // The empty-SAN path returns { kind: 'error', ... } from issueIfNeeded,
     // which index.ts logs via app.debug with the JSON-stringified outcome.
-    const errorOutcomeCall = debugSpy.mock.calls.find((args: unknown[]) => {
-      const msg = args[0]
-      return typeof msg === 'string' && msg.includes('"kind":"error"')
-    })
-    expect(errorOutcomeCall).toBeDefined()
+    // Poll for the call instead of sleeping a fixed window: cheap on a hot
+    // CI runner, robust on a slow one.
+    const seen = await waitFor(
+      () =>
+        debugSpy.mock.calls.find((args: unknown[]) => {
+          const msg = args[0]
+          return typeof msg === 'string' && msg.includes('"kind":"error"')
+        }) !== undefined
+    )
+    expect(seen).toBe(true)
     await plugin.stop()
   })
 })
+
+const waitFor = async (
+  predicate: () => boolean,
+  timeoutMs = 5_000,
+  intervalMs = 10
+): Promise<boolean> => {
+  const deadline = Date.now() + timeoutMs
+  while (Date.now() < deadline) {
+    if (predicate()) {
+      return true
+    }
+    await new Promise<void>((resolve) => {
+      setTimeout(resolve, intervalMs)
+    })
+  }
+  return predicate()
+}

@@ -13,6 +13,7 @@ import {
   X509CertificateGenerator,
   type JsonGeneralNames
 } from '@peculiar/x509'
+import type { JsonName } from '@peculiar/x509'
 import type {
   FingerprintAlgorithm,
   GenerateCaInput,
@@ -21,6 +22,14 @@ import type {
   SignLeafInput,
   SignedLeaf
 } from './types.js'
+
+// Build the DN as a structured JsonName so @peculiar/x509 handles RFC 4514
+// escaping internally. Hand-rolled `CN=${name}, O=${org}` interpolation
+// would break on common names containing comma, equals, plus, backslash, etc.
+const dn = (commonName: string, organization: string): JsonName => [
+  { CN: [commonName] },
+  { O: [organization] }
+]
 
 // Node's `webcrypto.Crypto` and the WebWorker lib's global `Crypto` diverge on
 // the Ed25519 overload; the runtime objects are identical but the structural
@@ -54,7 +63,7 @@ export const generateCa = async (input: GenerateCaInput): Promise<GeneratedCa> =
   const keys = await generateKeyPair()
   const notBefore = new Date()
   const notAfter = new Date(notBefore.getTime() + input.validityDays * MS_PER_DAY)
-  const distinguishedName = `CN=${input.commonName}, O=${input.organization}`
+  const distinguishedName = dn(input.commonName, input.organization)
 
   const cert = await X509CertificateGenerator.create({
     serialNumber: generateSerialNumber(),
@@ -96,7 +105,7 @@ export const signLeaf = async (input: SignLeafInput): Promise<SignedLeaf> => {
   const notBefore = new Date(now - input.clockSkewHours * MS_PER_HOUR)
   const notAfter = new Date(now + input.validityDays * MS_PER_DAY)
 
-  const subject = `CN=${input.subjectCommonName}, O=${input.organization}`
+  const subject = dn(input.subjectCommonName, input.organization)
 
   const cert = await X509CertificateGenerator.create({
     serialNumber: generateSerialNumber(),
