@@ -1,4 +1,4 @@
-import { createPrivateKey, type KeyObject, randomBytes, randomUUID, webcrypto } from 'node:crypto'
+import { createPrivateKey, type KeyObject, randomBytes, webcrypto } from 'node:crypto'
 import {
   AuthorityKeyIdentifierExtension,
   BasicConstraintsExtension,
@@ -7,7 +7,6 @@ import {
   ExtendedKeyUsageExtension,
   KeyUsageFlags,
   KeyUsagesExtension,
-  PemConverter,
   SubjectAlternativeNameExtension,
   SubjectKeyIdentifierExtension,
   X509Certificate,
@@ -23,6 +22,9 @@ import type {
   SignedLeaf
 } from './types.js'
 
+// Node's `webcrypto.Crypto` and the WebWorker lib's global `Crypto` diverge on
+// the Ed25519 overload; the runtime objects are identical but the structural
+// types aren't compatible. @peculiar/x509 v1 only declares the global type.
 cryptoProvider.set(webcrypto as unknown as Crypto)
 
 const EC_ALGORITHM: EcKeyGenParams & EcdsaParams = {
@@ -229,19 +231,3 @@ export const verifyChain = async (
   const ca = new X509Certificate(caPem)
   return leaf.verify({ publicKey: ca.publicKey, date: atDate })
 }
-
-export const loadCertificate = (pem: string): X509Certificate => new X509Certificate(pem)
-
-export const decodePemBlock = (pem: string, expectedTag?: string): Uint8Array => {
-  const blocks = PemConverter.decode(pem)
-  const first = blocks[0]
-  if (!first) {
-    throw new Error('No PEM block found')
-  }
-  if (expectedTag !== undefined && !pem.includes(`-----BEGIN ${expectedTag}-----`)) {
-    throw new Error(`Expected PEM tag ${expectedTag}`)
-  }
-  return new Uint8Array(first)
-}
-
-export const newSecret = (): string => randomUUID()

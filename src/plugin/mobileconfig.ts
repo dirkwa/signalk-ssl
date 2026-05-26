@@ -41,16 +41,19 @@ export const buildMobileconfig = (caCertPem: string, options: MobileconfigOption
   const name = escapeXml(options.caName)
   const org = escapeXml(options.organization)
 
+  // Use the already-XML-escaped `name` here so the template literals are
+  // injection-safe at construction time. Below we no longer pass the strings
+  // through escapeXml again, since they're already safe.
   const consent = {
-    en: `After installing this profile, enable full trust: Settings → General → About → Certificate Trust Settings → enable "${options.caName}".`,
-    de: `Nach der Installation dieses Profils aktivieren Sie volles Vertrauen: Einstellungen → Allgemein → Info → Zertifikatsvertrauenseinstellungen → "${options.caName}" aktivieren.`,
-    fr: `Après l'installation de ce profil, activez la confiance totale : Réglages → Général → Informations → Réglages des certificats → activer « ${options.caName} ».`,
-    es: `Después de instalar este perfil, habilite la confianza total: Ajustes → General → Información → Ajustes de certificados → activar "${options.caName}".`,
-    nl: `Schakel na installatie van dit profiel volledig vertrouwen in: Instellingen → Algemeen → Info → Instellingen vertrouwde certificaten → "${options.caName}" inschakelen.`
+    en: `After installing this profile, enable full trust: Settings → General → About → Certificate Trust Settings → enable "${name}".`,
+    de: `Nach der Installation dieses Profils aktivieren Sie volles Vertrauen: Einstellungen → Allgemein → Info → Zertifikatsvertrauenseinstellungen → "${name}" aktivieren.`,
+    fr: `Après l'installation de ce profil, activez la confiance totale : Réglages → Général → Informations → Réglages des certificats → activer « ${name} ».`,
+    es: `Después de instalar este perfil, habilite la confianza total: Ajustes → General → Información → Ajustes de certificados → activar "${name}".`,
+    nl: `Schakel na installatie van dit profiel volledig vertrouwen in: Instellingen → Algemeen → Info → Instellingen vertrouwde certificaten → "${name}" inschakelen.`
   }
 
   const consentXml = Object.entries(consent)
-    .map(([lang, text]) => `\t\t<key>${lang}</key>\n\t\t<string>${escapeXml(text)}</string>`)
+    .map(([lang, text]) => `\t\t<key>${lang}</key>\n\t\t<string>${text}</string>`)
     .join('\n')
 
   return `<?xml version="1.0" encoding="UTF-8"?>
@@ -97,7 +100,7 @@ export const buildMobileconfig = (caCertPem: string, options: MobileconfigOption
 \t<key>ConsentText</key>
 \t<dict>
 \t\t<key>default</key>
-\t\t<string>${escapeXml(consent.en)}</string>
+\t\t<string>${consent.en}</string>
 ${consentXml}
 \t</dict>
 </dict>
