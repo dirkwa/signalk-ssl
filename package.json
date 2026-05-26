@@ -93,7 +93,7 @@
     "react-dom": "^19.2.6",
     "react-hook-form": "^7.76.1",
     "tailwindcss": "^4.3.0",
-    "typescript": "^5.8.3",
+    "typescript": "^6.0.3",
     "typescript-eslint": "^8.33.1",
     "vite": "^8.0.14",
     "vitest": "^3.0.0",
