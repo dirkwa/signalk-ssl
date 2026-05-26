@@ -50,6 +50,9 @@ const pluginConstructor: PluginConstructor = (app: ServerAPI): Plugin => {
       service = new SslService({ store, passphrase, config, configPath })
 
       const svcLocal = service
+      const logSchedulerError = (err: unknown): void => {
+        app.error(`${PLUGIN_ID} scheduled renewal failed: ${String(err)}`)
+      }
       void store.init().then(async () => {
         try {
           const outcome = await svcLocal.issueIfNeeded()
@@ -57,10 +60,9 @@ const pluginConstructor: PluginConstructor = (app: ServerAPI): Plugin => {
         } catch (e: unknown) {
           app.error(`${PLUGIN_ID} initial issue failed: ${String(e)}`)
         }
-      })
-
-      scheduler = startRenewalScheduler(service, (err) => {
-        app.error(`${PLUGIN_ID} scheduled renewal failed: ${String(err)}`)
+        // Start the scheduler only after init + initial issue have completed,
+        // so a short test interval can't race against an uninitialised store.
+        scheduler = startRenewalScheduler(svcLocal, logSchedulerError)
       })
 
       app.debug(`${PLUGIN_ID} started; data dir=${dataDir}; configPath=${configPath}`)

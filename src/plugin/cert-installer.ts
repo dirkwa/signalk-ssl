@@ -42,7 +42,15 @@ export const installCerts = async (
   leafKeyPem: string,
   caPem: string
 ): Promise<void> => {
-  await mkdir(dirname(targets.certPath), { recursive: true })
+  // mkdir every distinct parent directory. defaultTargets() puts all three
+  // files under the same configPath, but the InstallTargets contract doesn't
+  // require that, and a caller picking custom paths would otherwise ENOENT.
+  const parents = new Set([
+    dirname(targets.certPath),
+    dirname(targets.keyPath),
+    dirname(targets.chainPath)
+  ])
+  await Promise.all([...parents].map((d) => mkdir(d, { recursive: true })))
   await atomicWrite(targets.keyPath, leafKeyPem, PEM_KEY_MODE)
   await atomicWrite(targets.certPath, leafPem, PEM_CERT_MODE)
   // Chain file = leaf + CA, separated by newline. Caddy/Go's tls.X509KeyPair
