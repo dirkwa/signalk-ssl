@@ -1,5 +1,6 @@
 .git/
 .gitignore
+.gitattributes
 .github/
 node_modules/
 src/
@@ -7,9 +8,12 @@ tests/
 coverage/
 .vitest-cache/
 *.tgz
+*.map
 tsconfig*.json
 vite.config.ts
 vitest.config.ts
 eslint.config.js
 .prettierrc.json
 .prettierignore
+AGENTS.md
+CLAUDE.md
