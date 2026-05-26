@@ -1,4 +1,15 @@
 .git/
 .gitignore
+.github/
 node_modules/
+src/
+tests/
+coverage/
+.vitest-cache/
 *.tgz
+tsconfig*.json
+vite.config.ts
+vitest.config.ts
+eslint.config.js
+.prettierrc.json
+.prettierignore
