@@ -43,10 +43,22 @@ jobs:
           node-version: "24"
           registry-url: "https://registry.npmjs.org"
 
-      - run: npm install
+      - run: npm install --legacy-peer-deps
+
+      - name: Format check
+        run: npm run format:check
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Typecheck
+        run: npm run typecheck
 
       - name: Build
-        run: npm run build
+        run: npm run build:all
+
+      - name: Test
+        run: npm test
 
       - name: Publish
         run: |

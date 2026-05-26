@@ -104,6 +104,41 @@ describe('SslService.issueIfNeeded', () => {
     expect(out.kind).toBe('locked')
   })
 
+  it('plugin stop/start: new SslService instance over the same store is a no-op (idempotency regression)', async () => {
+    const { svc, store, configPath: cp, config } = await buildService()
+    // Bootstrap CA + leaf via the first "plugin start".
+    const out1 = await svc.issueIfNeeded()
+    expect(out1.kind).toBe('issued')
+
+    const caBefore = await store.readCaState()
+    const leafBefore = await store.readLeafState()
+    expect(caBefore).not.toBeNull()
+    expect(leafBefore).not.toBeNull()
+
+    // Simulate plugin stop -> start by constructing a fresh SslService over
+    // the same store + configPath, then calling issueIfNeeded again. The
+    // contract says no regeneration should happen, no re-issue, no change to
+    // the persisted CA fingerprint or leaf cert PEM.
+    const svc2 = new SslService({
+      store,
+      passphrase: new PassphraseSource('env', store, {
+        env: { SIGNALK_SSL_PASSPHRASE: 'test-pp' }
+      }),
+      config,
+      configPath: cp
+    })
+    const out2 = await svc2.issueIfNeeded()
+    expect(out2.kind).toBe('no-op')
+
+    const caAfter = await store.readCaState()
+    const leafAfter = await store.readLeafState()
+    expect(caAfter?.fingerprintSha256).toBe(caBefore?.fingerprintSha256)
+    expect(caAfter?.certificatePem).toBe(caBefore?.certificatePem)
+    expect(caAfter?.encryptedKeyPem).toBe(caBefore?.encryptedKeyPem)
+    expect(leafAfter?.certificatePem).toBe(leafBefore?.certificatePem)
+    expect(leafAfter?.privateKeyPem).toBe(leafBefore?.privateKeyPem)
+  })
+
   it('status reflects no-CA before bootstrap and CA/leaf after', async () => {
     const { svc } = await buildService()
     const s1 = await svc.status()

@@ -47,8 +47,8 @@ describe('encryptPrivateKeyPkcs8 / decryptPrivateKeyPkcs8', () => {
 describe('derivePassphraseKey', () => {
   it('derives a stable AES-GCM key for the same passphrase + salt', async () => {
     const salt = new TextEncoder().encode('static-salt-bytes')
-    const k1 = await derivePassphraseKey('p', salt, 10_000)
-    const k2 = await derivePassphraseKey('p', salt, 10_000)
+    const k1 = await derivePassphraseKey('p', salt, 100)
+    const k2 = await derivePassphraseKey('p', salt, 100)
     // CryptoKey objects aren't comparable directly; use them to encrypt + decrypt.
     const iv = new Uint8Array(12)
     const ct = await webcrypto.subtle.encrypt(
@@ -62,8 +62,8 @@ describe('derivePassphraseKey', () => {
 
   it('produces different keys for different passphrases', async () => {
     const salt = new TextEncoder().encode('s')
-    const k1 = await derivePassphraseKey('a', salt, 10_000)
-    const k2 = await derivePassphraseKey('b', salt, 10_000)
+    const k1 = await derivePassphraseKey('a', salt, 100)
+    const k2 = await derivePassphraseKey('b', salt, 100)
     const iv = new Uint8Array(12)
     const ct = await webcrypto.subtle.encrypt({ name: 'AES-GCM', iv }, k1, new Uint8Array([42]))
     await expect(webcrypto.subtle.decrypt({ name: 'AES-GCM', iv }, k2, ct)).rejects.toThrow()

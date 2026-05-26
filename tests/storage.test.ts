@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest'
-import { mkdtemp, rm, stat, readFile } from 'node:fs/promises'
+import { mkdtemp, readdir, readFile, rm, stat } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { CertStore } from '../src/plugin/storage.js'
@@ -76,7 +76,10 @@ describe('CertStore round-trip', () => {
       passphraseMode: 'env',
       lastRenewedAt: null
     })
-    // No file matching settings.json.*.tmp should remain.
+    // Atomic write-then-rename: no settings.json.*.tmp should remain in the dir.
+    const entries = await readdir(dir)
+    const tmpLeftovers = entries.filter((f) => f.includes('.tmp'))
+    expect(tmpLeftovers).toEqual([])
     const raw = await readFile(join(dir, 'settings.json'), 'utf8')
     expect(raw).toContain('"passphraseMode"')
   })

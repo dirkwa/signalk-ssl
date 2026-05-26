@@ -45,5 +45,6 @@ describe('installCerts', () => {
     await installCerts(targets, 'cert2', 'key2', 'ca2')
     expect(await readFile(targets.certPath, 'utf8')).toBe('cert2')
     expect(await readFile(targets.keyPath, 'utf8')).toBe('key2')
+    expect(await readFile(targets.chainPath, 'utf8')).toBe('cert2\nca2\n')
   })
 })
