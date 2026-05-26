@@ -1,3 +1,8 @@
+// `@peculiar/x509` v2 (transitively imported via ./service -> ./crypto)
+// requires reflect-metadata to be loaded before any peculiar/x509 import
+// resolves. Side-effect import placed first to satisfy the polyfill order
+// at module-graph resolution time.
+import 'reflect-metadata'
 import type { Plugin, PluginConstructor, ServerAPI } from '@signalk/server-api'
 import type { IRouter } from 'express'
 import { CertStore } from './storage.js'

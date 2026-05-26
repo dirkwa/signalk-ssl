@@ -1,3 +1,8 @@
+// `@peculiar/x509` v2 wires `tsyringe` for DI, which requires the
+// reflect-metadata polyfill loaded before any peculiar/x509 import is
+// resolved. Putting it first in this file guarantees the side-effect
+// runs ahead of every other import the module-graph pulls below.
+import 'reflect-metadata'
 import { createPrivateKey, type KeyObject, randomBytes, webcrypto } from 'node:crypto'
 import {
   AuthorityKeyIdentifierExtension,
