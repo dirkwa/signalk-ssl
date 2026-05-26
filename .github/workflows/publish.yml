@@ -46,6 +46,13 @@ jobs:
           node-version: "22"
           registry-url: "https://registry.npmjs.org"
 
+      - name: Upgrade npm to ≥ 11.5 for OIDC trusted publishing
+        # actions/setup-node ships Node 22 with npm 10.9.x, which silently
+        # falls through to legacy auth on `npm publish` even when GitHub
+        # issues a valid OIDC token. The OIDC handshake landed in npm 11.5.
+        # Pin to the latest 11.x to keep the publish flow current.
+        run: npm install -g npm@^11
+
       - run: npm install --legacy-peer-deps
 
       - name: Format check
@@ -82,7 +89,5 @@ jobs:
       - name: Publish
         run: |
           if [[ "${{ github.ref }}" == refs/tags/*-beta.* ]] || [[ "${{ github.ref }}" == refs/tags/*-rc.* ]]; then
-            npm publish --provenance --access public --tag beta --loglevel=verbose
-          else
-            npm publish --provenance --access public --loglevel=verbose
-          fi
+            npm publish --provenance --access public --tag beta          else
+            npm publish --provenance --access public          fi
