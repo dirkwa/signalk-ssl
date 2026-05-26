@@ -12,6 +12,11 @@ Generates a local Certificate Authority, signs server certificates for your boat
 
 `signalk-ssl` collapses the whole flow into "open plugin → configure SANs → scan QR on each phone".
 
+## Prerequisites
+
+- Node.js ≥ 22.5.0 (matches the `engines.node` floor in `package.json`)
+- SignalK Node Server ≥ 2.0 (uses the `@signalk/server-api` v2 plugin contract)
+
 ## Install
 
 In the SignalK admin UI: **Appstore → Available → signalk-ssl → Install**.

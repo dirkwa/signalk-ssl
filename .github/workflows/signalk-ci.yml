@@ -76,6 +76,14 @@ jobs:
       format-check-command: npm run format:check
       node-versions: '["22", "24"]'
       enable-armv7: false
+      # The integration job boots a full signalk-server, installs the plugin
+      # into it, and exercises it as a real plugin. For signalk-ssl that
+      # would add 5–10 min per push without testing anything the unit suite
+      # doesn't already cover: this plugin is pure in-process Node (no
+      # sidecar, no protocol bridging) and the lifecycle + service tests
+      # already drive the full Plugin contract against a mocked ServerAPI.
+      # Re-enable if we add functionality that talks to the live server
+      # over HTTP / WebSocket and needs end-to-end coverage.
       enable-signalk-integration: false
       signalk-server-versions: '["latest"]'
 
