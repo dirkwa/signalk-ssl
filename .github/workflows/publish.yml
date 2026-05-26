@@ -40,7 +40,10 @@ jobs:
 
       - uses: actions/setup-node@v6
         with:
-          node-version: "24"
+          # Match the engines floor from package.json so we test against the
+          # oldest signalk-server users will be on. Anything newer that we'd
+          # rely on accidentally would fail here before reaching the registry.
+          node-version: "22"
           registry-url: "https://registry.npmjs.org"
 
       - run: npm install --legacy-peer-deps
@@ -65,13 +68,16 @@ jobs:
         # under --ignore-scripts (which is how the SignalK Appstore installs
         # plugins). Catches missing files[] entries, native deps in runtime
         # dependencies, anything else that would silently break the user.
+        # Uses dynamic import() since the plugin is type: "module" — that's
+        # the canonical loader for ESM and doesn't depend on the require(esm)
+        # implementation that varies across Node minors.
         run: |
           npm pack
           mkdir -p /tmp/ssl-pack-smoke
           cd /tmp/ssl-pack-smoke
           npm init -y >/dev/null
           npm install --ignore-scripts "$GITHUB_WORKSPACE"/signalk-ssl-*.tgz
-          node -e "const m=require('signalk-ssl');const c=m.default??m;const p=c({debug:()=>{},error:()=>{},getDataDirPath:()=>'/tmp/ssl-pack-smoke'});if(p.id!=='signalk-ssl')process.exit(1);console.log('tarball ok: '+p.id);"
+          node --input-type=module -e "const m=await import('signalk-ssl');const c=m.default??m;const p=c({debug:()=>{},error:()=>{},getDataDirPath:()=>'/tmp/ssl-pack-smoke'});if(p.id!=='signalk-ssl')process.exit(1);console.log('tarball ok: '+p.id);"
 
       - name: Publish
         run: |
