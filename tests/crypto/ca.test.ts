@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, beforeAll } from 'vitest'
 import {
   AuthorityKeyIdentifierExtension,
   BasicConstraintsExtension,
@@ -9,13 +9,19 @@ import {
 } from '@peculiar/x509'
 import { computeSpkiFingerprint, generateCa } from '../../src/plugin/crypto.js'
 
+let sharedCa: Awaited<ReturnType<typeof generateCa>>
+
+beforeAll(async () => {
+  sharedCa = await generateCa({
+    commonName: 'Test Boat CA',
+    organization: 'Tests',
+    validityDays: 3650
+  })
+})
+
 describe('generateCa', () => {
-  it('produces a self-signed CA with cA:true and keyCertSign+cRLSign', async () => {
-    const { certificatePem } = await generateCa({
-      commonName: 'Test Boat CA',
-      organization: 'Tests',
-      validityDays: 365
-    })
+  it('produces a self-signed CA with cA:true and keyCertSign+cRLSign', () => {
+    const { certificatePem } = sharedCa
 
     const cert = new X509Certificate(certificatePem)
     expect(cert.subject).toBe(cert.issuer)
@@ -39,6 +45,9 @@ describe('generateCa', () => {
   })
 
   it('honours the validityDays parameter (10y default-ish)', async () => {
+    // This test generates its own CA on purpose so the `before` baseline is
+    // captured right before generation — sharing sharedCa would mean before
+    // was already up to several test-runs old, weakening the notBefore check.
     const before = Date.now()
     const { certificatePem } = await generateCa({
       commonName: 'Validity Test',
@@ -65,9 +74,8 @@ describe('generateCa', () => {
   })
 
   it('computeSpkiFingerprint is stable for the same key', async () => {
-    const ca = await generateCa({ commonName: 'fp', organization: 'o', validityDays: 1 })
-    const fp1 = await computeSpkiFingerprint(ca.certificatePem, 'sha256')
-    const fp2 = await computeSpkiFingerprint(ca.certificatePem, 'sha256')
+    const fp1 = await computeSpkiFingerprint(sharedCa.certificatePem, 'sha256')
+    const fp2 = await computeSpkiFingerprint(sharedCa.certificatePem, 'sha256')
     expect(fp1).toBe(fp2)
     // SHA-256 = 32 bytes = 32 hex pairs = 31 colons
     expect(fp1.split(':')).toHaveLength(32)
