@@ -82,7 +82,7 @@ jobs:
       - name: Publish
         run: |
           if [[ "${{ github.ref }}" == refs/tags/*-beta.* ]] || [[ "${{ github.ref }}" == refs/tags/*-rc.* ]]; then
-            npm publish --provenance --access public --tag beta
+            npm publish --provenance --access public --tag beta --loglevel=verbose
           else
-            npm publish --provenance --access public
+            npm publish --provenance --access public --loglevel=verbose
           fi
