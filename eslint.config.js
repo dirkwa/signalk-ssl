@@ -32,6 +32,23 @@ export default [
     }
   }),
   ...tseslint.config({
+    files: ['src/webapp/**/*.ts', 'src/webapp/**/*.tsx'],
+    extends: [tseslint.configs.recommended],
+    languageOptions: {
+      parserOptions: {
+        project: './tsconfig.webapp.json',
+        tsconfigRootDir: import.meta.dirname
+      }
+    },
+    rules: {
+      '@typescript-eslint/no-explicit-any': 'error',
+      '@typescript-eslint/no-unused-vars': [
+        'error',
+        { argsIgnorePattern: '^_', varsIgnorePattern: '^_' }
+      ]
+    }
+  }),
+  ...tseslint.config({
     files: ['tests/**/*.ts', 'tests/**/*.tsx'],
     extends: [...tseslint.configs.strictTypeChecked, ...tseslint.configs.stylisticTypeChecked],
     languageOptions: {
