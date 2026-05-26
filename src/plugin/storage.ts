@@ -1,4 +1,4 @@
-import { mkdir, readFile, rename, rm, writeFile } from 'node:fs/promises'
+import { chmod, mkdir, readFile, rename, rm, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 
 export type PassphraseMode = 'env' | 'webapp' | 'convenience'
@@ -63,6 +63,10 @@ const atomicWrite = async (
     await rm(tmp, { force: true }).catch(() => undefined)
     throw err
   }
+  // Belt-and-braces: rename preserves the source mode on Linux, but some
+  // mounted volumes apply a widened umask on the rename target. Match the
+  // explicit chmod in cert-installer.ts so the on-disk mode is guaranteed.
+  await chmod(path, mode)
 }
 
 const readIfExists = async (path: string): Promise<string | null> => {
