@@ -70,6 +70,31 @@ describe('CertStore round-trip', () => {
     expect(back?.passphraseMode).toBe('convenience')
   })
 
+  it('leaf state round-trip preserves sansHash and issuedAt', async () => {
+    const leaf = {
+      certificatePem: '-----BEGIN CERTIFICATE-----\nMIIB\n-----END CERTIFICATE-----',
+      privateKeyPem: '-----BEGIN PRIVATE KEY-----\nMIIE\n-----END PRIVATE KEY-----',
+      sansHash: 'boat.local|10.0.0.1',
+      issuedAt: new Date('2026-05-26T12:00:00Z').toISOString()
+    } as const
+
+    await store.writeLeafState(leaf)
+    const back = await store.readLeafState()
+    expect(back).not.toBeNull()
+    expect(back?.certificatePem).toBe(leaf.certificatePem)
+    expect(back?.privateKeyPem).toBe(leaf.privateKeyPem)
+    expect(back?.sansHash).toBe(leaf.sansHash)
+    expect(back?.issuedAt).toBe(leaf.issuedAt)
+  })
+
+  it('convenience envelope round-trip', async () => {
+    await store.init()
+    await store.writeConvenienceEnvelope({ salt: 'deadbeef', iterations: 100 })
+    const back = await store.readConvenienceEnvelope()
+    expect(back?.salt).toBe('deadbeef')
+    expect(back?.iterations).toBe(100)
+  })
+
   it('write does not leave a .tmp file behind', async () => {
     await store.writeSettings({
       schemaVersion: 1,

@@ -41,7 +41,7 @@ export const ConfigSchema = Type.Object(
       description: 'Apple/Chrome reject leaf certs > 398 days; 397 is the safe ceiling.',
       default: 397,
       minimum: 7,
-      maximum: 398
+      maximum: 397
     }),
     sans: SansSchema,
     passphraseMode: Type.Union(

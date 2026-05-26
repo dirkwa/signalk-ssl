@@ -113,9 +113,9 @@ const Distribution = ({ status }: Props): React.JSX.Element => {
         </div>
       </details>
 
-      <details className="mt-3 rounded-md bg-slate-50 p-3 text-sm text-slate-700">
-        <summary className="cursor-pointer font-medium">Out-of-band verification</summary>
-        {status.caFingerprint !== null && (
+      {status.caFingerprint !== null && (
+        <details className="mt-3 rounded-md bg-slate-50 p-3 text-sm text-slate-700">
+          <summary className="cursor-pointer font-medium">Out-of-band verification</summary>
           <div className="mt-3 space-y-3">
             <p>
               Confirm the CA fingerprint on each device after install — if they match, you know
@@ -128,8 +128,8 @@ const Distribution = ({ status }: Props): React.JSX.Element => {
               <QRCodeSVG value={status.caFingerprint} size={160} level="L" />
             </div>
           </div>
-        )}
-      </details>
+        </details>
+      )}
     </section>
   )
 }

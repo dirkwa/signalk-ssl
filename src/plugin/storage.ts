@@ -1,4 +1,4 @@
-import { mkdir, readFile, rename, writeFile } from 'node:fs/promises'
+import { mkdir, readFile, rename, rm, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 
 export type PassphraseMode = 'env' | 'webapp' | 'convenience'
@@ -37,6 +37,7 @@ const FILES = {
   leafCert: 'leaf.cert.pem',
   leafKey: 'leaf.key.pem',
   state: 'state.json',
+  leafState: 'leaf-state.json',
   settings: 'settings.json',
   convenience: 'passphrase.kdf.json'
 } as const
@@ -53,7 +54,15 @@ const atomicWrite = async (
   // tmp suffix is per-write so concurrent writers don't trample each other.
   const tmp = `${path}.${process.pid.toString()}.${Date.now().toString()}.tmp`
   await writeFile(tmp, data, { mode })
-  await rename(tmp, path)
+  try {
+    await rename(tmp, path)
+  } catch (err) {
+    // If rename fails (cross-device, EACCES on the target, etc.), the tmp
+    // file is orphaned. Best-effort cleanup so repeated failures don't pile
+    // up garbage in the data dir; the original error is preserved.
+    await rm(tmp, { force: true }).catch(() => undefined)
+    throw err
+  }
 }
 
 const readIfExists = async (path: string): Promise<string | null> => {
@@ -117,11 +126,13 @@ export class CertStore {
     if (cert === null || key === null) {
       return null
     }
+    const metaRaw = await readIfExists(this.path('leafState'))
+    const parsed = metaRaw === null ? null : (JSON.parse(metaRaw) as Partial<LeafStateOnDisk>)
     return {
       certificatePem: cert,
       privateKeyPem: key,
-      sansHash: '',
-      issuedAt: new Date(0).toISOString()
+      sansHash: parsed?.sansHash ?? '',
+      issuedAt: parsed?.issuedAt ?? new Date(0).toISOString()
     }
   }
 
@@ -129,6 +140,11 @@ export class CertStore {
     await this.init()
     await atomicWrite(this.path('leafCert'), state.certificatePem, PEM_CERT_MODE)
     await atomicWrite(this.path('leafKey'), state.privateKeyPem, PEM_KEY_MODE)
+    const meta = {
+      sansHash: state.sansHash,
+      issuedAt: state.issuedAt
+    }
+    await atomicWrite(this.path('leafState'), JSON.stringify(meta, null, 2), JSON_MODE)
   }
 
   async readSettings(): Promise<SettingsOnDisk | null> {

@@ -60,6 +60,19 @@ jobs:
       - name: Test
         run: npm test
 
+      - name: Pack and verify --ignore-scripts install
+        # Verify the tarball that's about to be published actually installs
+        # under --ignore-scripts (which is how the SignalK Appstore installs
+        # plugins). Catches missing files[] entries, native deps in runtime
+        # dependencies, anything else that would silently break the user.
+        run: |
+          npm pack
+          mkdir -p /tmp/ssl-pack-smoke
+          cd /tmp/ssl-pack-smoke
+          npm init -y >/dev/null
+          npm install --ignore-scripts "$GITHUB_WORKSPACE"/signalk-ssl-*.tgz
+          node -e "const m=require('signalk-ssl');const c=m.default??m;const p=c({debug:()=>{},error:()=>{},getDataDirPath:()=>'/tmp/ssl-pack-smoke'});if(p.id!=='signalk-ssl')process.exit(1);console.log('tarball ok: '+p.id);"
+
       - name: Publish
         run: |
           if [[ "${{ github.ref }}" == refs/tags/*-beta.* ]] || [[ "${{ github.ref }}" == refs/tags/*-rc.* ]]; then
