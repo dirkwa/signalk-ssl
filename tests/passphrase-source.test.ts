@@ -80,19 +80,22 @@ describe('PassphraseSource', () => {
     })
     const ra = await a.resolve()
     const dirB = await mkdtemp(join(tmpdir(), 'signalk-ssl-pp2-'))
-    const storeB = new CertStore(dirB)
-    await storeB.init()
-    const b = new PassphraseSource('convenience', storeB, {
-      env: {},
-      machineId: 'host-b',
-      convenienceIterations: TEST_ITERATIONS
-    })
-    const rb = await b.resolve()
-    expect(ra.kind).toBe('ok')
-    expect(rb.kind).toBe('ok')
-    if (ra.kind === 'ok' && rb.kind === 'ok') {
-      expect(ra.passphrase).not.toBe(rb.passphrase)
+    try {
+      const storeB = new CertStore(dirB)
+      await storeB.init()
+      const b = new PassphraseSource('convenience', storeB, {
+        env: {},
+        machineId: 'host-b',
+        convenienceIterations: TEST_ITERATIONS
+      })
+      const rb = await b.resolve()
+      expect(ra.kind).toBe('ok')
+      expect(rb.kind).toBe('ok')
+      if (ra.kind === 'ok' && rb.kind === 'ok') {
+        expect(ra.passphrase).not.toBe(rb.passphrase)
+      }
+    } finally {
+      await rm(dirB, { recursive: true, force: true })
     }
-    await rm(dirB, { recursive: true, force: true })
   })
 })

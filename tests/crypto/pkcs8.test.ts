@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, beforeAll } from 'vitest'
 import { webcrypto } from 'node:crypto'
 import { X509Certificate } from '@peculiar/x509'
 import {
@@ -8,9 +8,15 @@ import {
   generateCa
 } from '../../src/plugin/crypto.js'
 
+let sharedCa: Awaited<ReturnType<typeof generateCa>>
+
+beforeAll(async () => {
+  sharedCa = await generateCa({ commonName: 't', organization: 't', validityDays: 1 })
+})
+
 describe('encryptPrivateKeyPkcs8 / decryptPrivateKeyPkcs8', () => {
   it('round-trips a CA private key with the correct passphrase', async () => {
-    const ca = await generateCa({ commonName: 't', organization: 't', validityDays: 1 })
+    const ca = sharedCa
 
     const pem = await encryptPrivateKeyPkcs8(ca.privateKey, 'correct horse battery staple')
     expect(pem).toContain('-----BEGIN ENCRYPTED PRIVATE KEY-----')
@@ -32,7 +38,7 @@ describe('encryptPrivateKeyPkcs8 / decryptPrivateKeyPkcs8', () => {
   })
 
   it('throws when decrypted with a wrong passphrase', async () => {
-    const ca = await generateCa({ commonName: 't', organization: 't', validityDays: 1 })
+    const ca = sharedCa
     const pem = await encryptPrivateKeyPkcs8(ca.privateKey, 'right')
     await expect(decryptPrivateKeyPkcs8(pem, 'wrong')).rejects.toThrow()
   })

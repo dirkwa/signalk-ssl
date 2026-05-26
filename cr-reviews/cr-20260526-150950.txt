@@ -1,0 +1,296 @@
+Notice: Detected claude environment. Use `coderabbit review --agent` for structured agent-friendly output.
+Connecting to CodeRabbit... 0s elapsed
+
+   !   This repository belongs to org dirkwa. This review will be attributed to
+       org dirkwa.
+
+────────────────────────────────────────
+CodeRabbit Review
+
+Diff      : all local changes (committed + uncommitted)
+Compare   : main → 7e449b7
+Directory : signalk-ssl
+────────────────────────────────────────
+
+(\(\
+(• .•)  Untangling your code like a pair of headphones.
+
+Preparing review... 3s elapsed
+Preparing sandbox... 3s elapsed
+Summarizing changes... 33s elapsed
+Summarizing changes... 1m 03s elapsed - still working
+Writing review comments... 1m 37s elapsed - still working
+Writing review comments... 2m 03s elapsed - still working
+Writing review comments... 3m 03s elapsed - still working
+Preparing sandbox... 3m 21s elapsed - still working
+
+────────────────────────────────────────────────────────────────────────
+  minor [potential_issue]
+  → ]8;;vscode://file//home/dirk/dev/signalk-ssl/tests/plugin-lifecycle.test.ts:40tests/plugin-lifecycle.test.ts:40-51]8;;
+
+  Test name claims error logging verification but doesn't assert it.
+
+  The test name includes "(no SAN configured)" suggesting it verifies error
+  logging, but there are no assertions on app.error calls. Either add
+  assertions or update the test name to reflect what's actually verified.
+
+
+
+  🧪 Proposed assertion to verify error logging
+
+     it('start() with empty SAN config runs without throwing and logs an error inside (no SAN configured)', async () => {
+       const app = makeMockApp()
+       const plugin = pluginConstructor(app)
+       expect(() => {
+         plugin.start({}, () => undefined)
+       }).not.toThrow()
+       // Give the floating async issue a chance to settle.
+       await new Promise<void>((resolve) => {
+         setTimeout(resolve, 50)
+       })
+  +    expect(app.error).toHaveBeenCalled()
+       await plugin.stop()
+     })
+
+
+────────────────────────────────────────────────────────────────────────
+  minor [potential_issue]
+  → ]8;;vscode://file//home/dirk/dev/signalk-ssl/tests/passphrase-source.test.ts:75tests/passphrase-source.test.ts:75-97]8;;
+
+  Resource leak if test fails before cleanup.
+
+  The second temporary directory dirB is created at line 82 and cleaned up
+  at line 96. If any assertion between lines 82-95 fails, dirB will not be
+  removed.
+
+
+
+  🧹 Proposed fix using try-finally
+
+     it('convenience passphrase differs across hosts', async () => {
+       const a = new PassphraseSource('convenience', store, {
+         env: {},
+         machineId: 'host-a',
+         convenienceIterations: TEST_ITERATIONS
+       })
+       const ra = await a.resolve()
+       const dirB = await mkdtemp(join(tmpdir(), 'signalk-ssl-pp2-'))
+  -    const storeB = new CertStore(dirB)
+  -    await storeB.init()
+  -    const b = new PassphraseSource('convenience', storeB, {
+  -      env: {},
+  -      machineId: 'host-b',
+  -      convenienceIterations: TEST_ITERATIONS
+  -    })
+  -    const rb = await b.resolve()
+  -    expect(ra.kind).toBe('ok')
+  -    expect(rb.kind).toBe('ok')
+  -    if (ra.kind === 'ok' && rb.kind === 'ok') {
+  -      expect(ra.passphrase).not.toBe(rb.passphrase)
+  +    try {
+  +      const storeB = new CertStore(dirB)
+  +      await storeB.init()
+  +      const b = new PassphraseSource('convenience', storeB, {
+  +        env: {},
+  +        machineId: 'host-b',
+  +        convenienceIterations: TEST_ITERATIONS
+  +      })
+  +      const rb = await b.resolve()
+  +      expect(ra.kind).toBe('ok')
+  +      expect(rb.kind).toBe('ok')
+  +      if (ra.kind === 'ok' && rb.kind === 'ok') {
+  +        expect(ra.passphrase).not.toBe(rb.passphrase)
+  +      }
+  +    } finally {
+  +      await rm(dirB, { recursive: true, force: true })
+       }
+  -    await rm(dirB, { recursive: true, force: true })
+     })
+
+
+────────────────────────────────────────────────────────────────────────
+  critical [potential_issue]
+  → ]8;;vscode://file//home/dirk/dev/signalk-ssl/src/webapp/components/StatusDashboard.tsx:22src/webapp/components/StatusDashboard.tsx:22-33]8;;
+
+  Critical: Handle all renewal outcomes.
+
+  The renew() API returns an IssueOutcome union type that can be `{
+  kind: 'error', message: string }, { kind: 'locked', ... }, { kind:
+  'no-op', ... }, or { kind: 'issued', ... }`. Currently the code ignores
+  the outcome and only calls onChange() on success, which means error
+  outcomes are silently ignored and not displayed to the user.
+
+
+
+
+  🐛 Proposed fix to handle all outcome kinds
+
+   const handleRenew = async (): Promise<void> => {
+     setBusy(true)
+     setError(null)
+     try {
+  -    await renew()
+  -    onChange()
+  +    const out = await renew()
+  +    if (out.kind === 'error') {
+  +      setError(out.message)
+  +    } else if (out.kind === 'locked') {
+  +      setError('CA is locked. Please unlock first.')
+  +    } else {
+  +      // kind is 'issued' or 'no-op'
+  +      onChange()
+  +    }
+     } catch (e: unknown) {
+       setError(e instanceof Error ? e.message : String(e))
+     } finally {
+       setBusy(false)
+     }
+   }
+
+
+────────────────────────────────────────────────────────────────────────
+  major [refactor_suggestion]
+  → ]8;;vscode://file//home/dirk/dev/signalk-ssl/tests/crypto/pkcs8.test.ts:13tests/crypto/pkcs8.test.ts:13]8;;
+
+  Reuse a single CA across all tests instead of regenerating per test.
+
+  Each test generates a fresh CA (lines 13, 35), which impacts performance.
+  As per coding guidelines, crypto tests should reuse a single CA via shared
+  setup.
+
+
+
+
+  ♻️ Refactor to use a shared CA
+
+  -import { describe, it, expect } from 'vitest'
+  +import { describe, it, expect, beforeAll } from 'vitest'
+   import { webcrypto } from 'node:crypto'
+   import { X509Certificate } from '@peculiar/x509'
+   import {
+     decryptPrivateKeyPkcs8,
+     derivePassphraseKey,
+     encryptPrivateKeyPkcs8,
+     generateCa
+   } from '../../src/plugin/crypto.js'
+  
+  +let sharedCa: Awaited<ReturnType<typeof generateCa>>
+  +
+  +beforeAll(async () => {
+  +  sharedCa = await generateCa({ commonName: 't', organization: 't', validityDays: 1 })
+  +})
+  
+   describe('encryptPrivateKeyPkcs8 / decryptPrivateKeyPkcs8', () => {
+     it('round-trips a CA private key with the correct passphrase', async () => {
+  -    const ca = await generateCa({ commonName: 't', organization: 't', validityDays: 1 })
+  +    const ca = sharedCa
+       
+       const pem = await encryptPrivateKeyPkcs8(ca.privateKey, 'correct horse battery staple')
+
+  Apply the same pattern for line 35.
+
+
+  As per coding guidelines, crypto tests should reuse a single CA across
+  test cases.
+
+
+  Also applies to: 35-35
+
+
+────────────────────────────────────────────────────────────────────────
+  major [refactor_suggestion]
+  → ]8;;vscode://file//home/dirk/dev/signalk-ssl/tests/crypto/leaf.test.ts:15tests/crypto/leaf.test.ts:15-16]8;;
+
+  Reuse a single CA across all tests instead of regenerating per test.
+
+  The buildCa helper is called separately in each test (lines 20, 72, 88,
+  89), generating a fresh CA every time. As per coding guidelines, crypto
+  tests should reuse a single CA via shared setup to improve performance.
+
+
+
+
+  ♻️ Refactor to use a shared CA
+
+  +import { describe, it, expect, beforeAll } from 'vitest'
+  -import { describe, it, expect } from 'vitest'
+   import {
+     AuthorityKeyIdentifierExtension,
+     BasicConstraintsExtension,
+     ExtendedKeyUsage,
+     ExtendedKeyUsageExtension,
+     KeyUsageFlags,
+     KeyUsagesExtension,
+     SubjectAlternativeNameExtension,
+     X509Certificate
+   } from '@peculiar/x509'
+   import { generateCa, signLeaf, verifyChain } from '../../src/plugin/crypto.js'
+   import { parseSans } from '../../src/plugin/sans.js'
+  
+  -const buildCa = async () =>
+  -  generateCa({ commonName: 'Leaf Test CA', organization: 'Tests', validityDays: 3650 })
+  +let sharedCa: Awaited<ReturnType<typeof generateCa>>
+  +
+  +beforeAll(async () => {
+  +  sharedCa = await generateCa({ commonName: 'Leaf Test CA', organization: 'Tests', validityDays: 3650 })
+  +})
+  
+   describe('signLeaf', () => {
+     it('produces a leaf signed by the CA, valid 397d, with correct extensions', async () => {
+  -    const ca = await buildCa()
+  +    const ca = sharedCa
+       const sans = parseSans(['boat.local', 'localhost', '192.168.1.10'])
+
+  Then update lines 72, 88, 89 similarly to use sharedCa instead of `await
+  buildCa()`.
+
+
+  As per coding guidelines, crypto tests should reuse a single CA across
+  test cases via a shared setup function.
+
+
+────────────────────────────────────────────────────────────────────────
+  major [refactor_suggestion]
+  → ]8;;vscode://file//home/dirk/dev/signalk-ssl/tests/service.test.ts:23tests/service.test.ts:23-32]8;;
+
+  Remove unused passphrase variable.
+
+  The passphrase variable is created but immediately voided on line 32 and
+  never used. Only passEnv is passed to the service. This is dead code
+  that should be removed.
+
+
+
+
+  ♻️ Remove dead code
+
+     const config: SignalkSslConfig = {
+       ...DEFAULT_CONFIG,
+       sans: { dnsNames: ['boat.local'], ipAddresses: [] },
+       ...overrides
+     }
+  -  const passphrase = new PassphraseSource(config.passphraseMode, store, {
+  -    env: { SIGNALK_SSL_PASSPHRASE: 'test-pp' },
+  -    machineId: 'test-host',
+  -    convenienceIterations: 100
+  -  })
+     // Force env mode so we don't pay the convenience-mode SHA loop in tests.
+     const passEnv = new PassphraseSource('env', store, {
+       env: { SIGNALK_SSL_PASSPHRASE: 'test-pp' }
+     })
+  -  void passphrase
+     const svc = new SslService({ store, passphrase: passEnv, config, configPath })
+     return { svc, store, configPath, dataDir, config }
+   }
+
+
+────────────────────────────────────────
+Review complete
+6 findings ✔
+
+Critical 1
+Major    3
+Minor    2
+────────────────────────────────────────
+
+Print all AI prompts: coderabbit review --show-prompts

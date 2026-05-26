@@ -20,16 +20,10 @@ const buildService = async (overrides: Partial<SignalkSslConfig> = {}) => {
     sans: { dnsNames: ['boat.local'], ipAddresses: [] },
     ...overrides
   }
-  const passphrase = new PassphraseSource(config.passphraseMode, store, {
-    env: { SIGNALK_SSL_PASSPHRASE: 'test-pp' },
-    machineId: 'test-host',
-    convenienceIterations: 100
-  })
   // Force env mode so we don't pay the convenience-mode SHA loop in tests.
   const passEnv = new PassphraseSource('env', store, {
     env: { SIGNALK_SSL_PASSPHRASE: 'test-pp' }
   })
-  void passphrase
   const svc = new SslService({ store, passphrase: passEnv, config, configPath })
   return { svc, store, configPath, dataDir, config }
 }

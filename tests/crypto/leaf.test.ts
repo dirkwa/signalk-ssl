@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, beforeAll } from 'vitest'
 import {
   AuthorityKeyIdentifierExtension,
   BasicConstraintsExtension,
@@ -12,12 +12,19 @@ import {
 import { generateCa, signLeaf, verifyChain } from '../../src/plugin/crypto.js'
 import { parseSans } from '../../src/plugin/sans.js'
 
-const buildCa = async () =>
-  generateCa({ commonName: 'Leaf Test CA', organization: 'Tests', validityDays: 3650 })
+let sharedCa: Awaited<ReturnType<typeof generateCa>>
+
+beforeAll(async () => {
+  sharedCa = await generateCa({
+    commonName: 'Leaf Test CA',
+    organization: 'Tests',
+    validityDays: 3650
+  })
+})
 
 describe('signLeaf', () => {
   it('produces a leaf signed by the CA, valid 397d, with correct extensions', async () => {
-    const ca = await buildCa()
+    const ca = sharedCa
     const sans = parseSans(['boat.local', 'localhost', '192.168.1.10'])
 
     const before = Date.now()
@@ -69,7 +76,7 @@ describe('signLeaf', () => {
   })
 
   it('verifies the leaf chains to the CA public key', async () => {
-    const ca = await buildCa()
+    const ca = sharedCa
     const sans = parseSans(['signalk.local'])
     const leaf = await signLeaf({
       issuer: { certificatePem: ca.certificatePem, privateKey: ca.privateKey },
@@ -85,8 +92,13 @@ describe('signLeaf', () => {
   })
 
   it('rejects verification against a different CA', async () => {
-    const ca1 = await buildCa()
-    const ca2 = await buildCa()
+    // This test specifically needs two distinct CAs, so we don't reuse sharedCa.
+    const ca1 = sharedCa
+    const ca2 = await generateCa({
+      commonName: 'Different CA',
+      organization: 'Tests',
+      validityDays: 3650
+    })
     const leaf = await signLeaf({
       issuer: { certificatePem: ca1.certificatePem, privateKey: ca1.privateKey },
       subjectCommonName: 'a.local',

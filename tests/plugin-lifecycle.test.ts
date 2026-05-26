@@ -37,16 +37,24 @@ describe('signalk-ssl plugin lifecycle', () => {
     expect(typeof plugin.signalKApiRoutes).toBe('function')
   })
 
-  it('start() with empty SAN config runs without throwing and logs an error inside (no SAN configured)', async () => {
+  it('start() with empty SAN config reports the error outcome via debug log', async () => {
     const app = makeMockApp()
     const plugin = pluginConstructor(app)
     expect(() => {
       plugin.start({}, () => undefined)
     }).not.toThrow()
-    // Give the floating async issue a chance to settle.
+    // Give the floating async initial issueIfNeeded a chance to settle.
     await new Promise<void>((resolve) => {
-      setTimeout(resolve, 50)
+      setTimeout(resolve, 100)
     })
+    const debugSpy = app.debug as unknown as ReturnType<typeof vi.fn>
+    // The empty-SAN path returns { kind: 'error', ... } from issueIfNeeded,
+    // which index.ts logs via app.debug with the JSON-stringified outcome.
+    const errorOutcomeCall = debugSpy.mock.calls.find((args: unknown[]) => {
+      const msg = args[0]
+      return typeof msg === 'string' && msg.includes('"kind":"error"')
+    })
+    expect(errorOutcomeCall).toBeDefined()
     await plugin.stop()
   })
 })

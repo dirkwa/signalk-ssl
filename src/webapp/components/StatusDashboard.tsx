@@ -23,8 +23,14 @@ const StatusDashboard = ({ status, onChange }: Props): React.JSX.Element => {
     setBusy(true)
     setError(null)
     try {
-      await renew()
-      onChange()
+      const out = await renew()
+      if (out.kind === 'error') {
+        setError(out.message)
+      } else if (out.kind === 'locked') {
+        setError('CA is locked — unlock the plugin first.')
+      } else {
+        onChange()
+      }
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : String(e))
     } finally {
