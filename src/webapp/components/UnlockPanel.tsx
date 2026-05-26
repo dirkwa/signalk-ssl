@@ -44,7 +44,11 @@ const UnlockPanel = ({ onUnlocked }: Props): React.JSX.Element => {
         }}
         className="mt-4 space-y-3"
       >
+        <label htmlFor="signalk-ssl-passphrase" className="sr-only">
+          Passphrase
+        </label>
         <input
+          id="signalk-ssl-passphrase"
           type="password"
           value={passphrase}
           onChange={(e) => {

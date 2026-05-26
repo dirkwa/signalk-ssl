@@ -1,12 +1,17 @@
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, beforeAll } from 'vitest'
 import { generateCa, signLeaf } from '../src/plugin/crypto.js'
 import { parseSans } from '../src/plugin/sans.js'
 import { needsRenewal } from '../src/plugin/needs-renewal.js'
 
+let sharedCa: Awaited<ReturnType<typeof generateCa>>
+
+beforeAll(async () => {
+  sharedCa = await generateCa({ commonName: 'r', organization: 'o', validityDays: 3650 })
+})
+
 const buildLeaf = async (validityDays: number, sans: readonly string[]) => {
-  const ca = await generateCa({ commonName: 'r', organization: 'o', validityDays: 3650 })
   return signLeaf({
-    issuer: { certificatePem: ca.certificatePem, privateKey: ca.privateKey },
+    issuer: { certificatePem: sharedCa.certificatePem, privateKey: sharedCa.privateKey },
     subjectCommonName: 'r',
     organization: 'o',
     sans: parseSans(sans),
