@@ -60,6 +60,12 @@ on:
         type: string
 
 jobs:
+  # The reusable workflow is intentionally pinned to @master so this plugin
+  # tracks the same shared CI as the rest of the SignalK plugin ecosystem
+  # (mirrors signalk-database, mayara-server-signalk-plugin, etc). Pinning
+  # to a tag would mean drift between plugins; pinning to a SHA defeats the
+  # whole "shared CI" point.
+
   # ── Automatic runs (push / pull request) ──────────────────
   test-plugin-auto:
     if: ${{ github.event_name != 'workflow_dispatch' }}
