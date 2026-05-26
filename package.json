@@ -64,7 +64,7 @@
     "@signalk/server-api": "^2.0.0"
   },
   "dependencies": {
-    "@peculiar/x509": "^1.12.3",
+    "@peculiar/x509": "^2.0.0",
     "@sinclair/typebox": "^0.34.49",
     "qrcode": "^1.5.4"
   },
