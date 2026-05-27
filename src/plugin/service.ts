@@ -125,12 +125,17 @@ export class SslService {
 
   private async importCa(passphrase: string): Promise<CaStateOnDisk> {
     const importCfg = this.deps.config.import
-    if (importCfg === undefined) {
-      throw new Error('import mode selected but no import paths configured')
+    const caCertPath = importCfg?.caCertPath ?? ''
+    const caKeyPath = importCfg?.caKeyPath ?? ''
+    if (caCertPath === '' || caKeyPath === '') {
+      throw new Error(
+        'import mode requires both "Import → CA certificate file path" and ' +
+          '"Import → CA private-key file path (encrypted PKCS#8)" to be set in the plugin config.'
+      )
     }
     const [certificatePem, encryptedKeyPem] = await Promise.all([
-      readFile(importCfg.caCertPath, 'utf8'),
-      readFile(importCfg.caKeyPath, 'utf8')
+      readFile(caCertPath, 'utf8'),
+      readFile(caKeyPath, 'utf8')
     ])
     // Validate the key actually decrypts before persisting — fail fast.
     await decryptPrivateKeyPkcs8(encryptedKeyPem, passphrase)

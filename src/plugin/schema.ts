@@ -8,10 +8,29 @@ export const SansSchema = Type.Object(
   { title: 'Subject Alternative Names' }
 )
 
-export const ImportSchema = Type.Object({
-  caCertPath: Type.String({ title: 'CA certificate file path' }),
-  caKeyPath: Type.String({ title: 'CA private-key file path (encrypted PKCS#8)' })
-})
+export const ImportSchema = Type.Object(
+  {
+    caCertPath: Type.Optional(
+      Type.String({
+        title: 'CA certificate file path',
+        description: 'Only used when mode = import. Leave blank for generate mode.',
+        default: ''
+      })
+    ),
+    caKeyPath: Type.Optional(
+      Type.String({
+        title: 'CA private-key file path (encrypted PKCS#8)',
+        description: 'Only used when mode = import. Leave blank for generate mode.',
+        default: ''
+      })
+    )
+  },
+  {
+    title: 'Import (only used when mode = import)',
+    description:
+      'Paths to an existing CA cert + encrypted private key on disk. Ignored in generate mode.'
+  }
+)
 
 export const ConfigSchema = Type.Object(
   {
