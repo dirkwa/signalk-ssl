@@ -46,6 +46,7 @@
   "signalk-plugin-enabled-by-default": false,
   "signalk": {
     "displayName": "SignalK SSL",
+    "appIcon": "./app-icon.svg",
     "appstore": {
       "displayName": "SignalK SSL",
       "categories": [

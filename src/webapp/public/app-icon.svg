@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" role="img" aria-label="signalk-ssl">
+  <title>signalk-ssl</title>
+  <!-- Background: rounded square in SignalK blue -->
+  <rect x="0" y="0" width="256" height="256" rx="44" ry="44" fill="#003399"/>
+
+  <!-- Concentric broadcasting arcs above the lock: the "signal" in SignalK -->
+  <g fill="none" stroke="#FFCC00" stroke-linecap="round">
+    <path d="M 88 80 A 40 40 0 0 1 168 80" stroke-width="6"/>
+    <path d="M 74 78 A 54 54 0 0 1 182 78" stroke-width="6" opacity="0.7"/>
+    <path d="M 60 76 A 68 68 0 0 1 196 76" stroke-width="6" opacity="0.45"/>
+  </g>
+
+  <!-- Padlock shackle: rounded inverted-U, drawn after the arcs so it sits on top -->
+  <path d="M 96 130 V 102 a 32 32 0 0 1 64 0 V 130" fill="none" stroke="#FFFFFF" stroke-width="14" stroke-linecap="round"/>
+
+  <!-- Padlock body: rounded rectangle -->
+  <rect x="64" y="126" width="128" height="100" rx="14" ry="14" fill="#FFFFFF"/>
+
+  <!-- Keyhole: circle + tapered stem in SignalK blue, evokes a classic lock -->
+  <circle cx="128" cy="166" r="14" fill="#003399"/>
+  <path d="M 122 174 L 118 206 H 138 L 134 174 Z" fill="#003399"/>
+</svg>
