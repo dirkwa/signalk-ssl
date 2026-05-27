@@ -9,7 +9,7 @@ This file is read by AI coding agents (Claude Code, Cursor, Codex, etc.) when wo
 Three responsibilities:
 
 1. **CA + leaf cert management** — generates an EC P-256 CA (or imports an existing one), signs leaf certs covering configured DNS + IP SANs, auto-renews 30 days before expiry. Encrypts the CA private key at rest with PBES2 / PBKDF2-SHA256 / AES-256-CBC PKCS#8.
-2. **Cert installation** — atomically writes `ssl-cert.pem` / `ssl-key.pem` / `ssl-chain.pem` to `${app.config.configPath}` with strict `0600` perms on the key (signalk-server refuses to start otherwise).
+2. **Cert installation** — atomically writes `ssl-cert.pem` / `ssl-key.pem` / `ssl-chain.pem` to `${app.config.configPath}` with strict `0600` perms on all three files (signalk-server's `hasStrictPermissions` check refuses to start if the cert or key is group/world-readable).
 3. **CA distribution UX** — React 19 / Tailwind v4 webapp with a setup wizard, status dashboard, and a "scan this QR" panel that downloads the CA as `.mobileconfig` (iOS) or `.crt` (Android / desktop).
 
 No sidecar containers, no `signalk-container` dependency. Pure in-process Node, runs on bare-metal and the SignalK Docker image equally.
@@ -135,9 +135,9 @@ The plugin's data lives under `app.getDataDirPath()` (`~/.signalk/plugin-config-
 
 `SslService.targets()` returns the config-path-based InstallTargets. `app.config` is **not** in `@signalk/server-api`'s typed surface — it's a runtime field. `src/plugin/index.ts` defines `ExtendedServerAPI` to access it without `any`. When adding more runtime-only fields, extend that interface rather than casting.
 
-### `0600` enforcement on the leaf key
+### `0600` enforcement on cert, key, and chain
 
-`installCerts` writes the key with `mode: 0o600` and then `chmod`s it again. The chmod is belt-and-braces for filesystems where the inherited umask might widen the mode (some bind-mounted volumes do). Don't drop it.
+`installCerts` writes all three files with `mode: 0o600` and then `chmod`s each again. signalk-server's `hasStrictPermissions` (`src/security.ts`) applies the same `^-r[-w][-x]------$` regex to both `ssl-cert.pem` and `ssl-key.pem` — a world-readable cert refuses to boot just like a world-readable key would. The chmod is belt-and-braces for filesystems where the inherited umask might widen the mode (some bind-mounted volumes do). Don't drop it. Don't loosen any of the three modes to `0o644`.
 
 ### Webapp build location
 
