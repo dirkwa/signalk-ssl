@@ -21,6 +21,12 @@ export type IssueOutcome =
   | { readonly kind: 'locked'; readonly reason: 'passphrase-required' | 'env-missing' }
   | { readonly kind: 'error'; readonly message: string }
 
+export type RotateOutcome =
+  | { readonly kind: 'rotated' }
+  | { readonly kind: 'no-ca' }
+  | { readonly kind: 'wrong-passphrase' }
+  | { readonly kind: 'error'; readonly message: string }
+
 export interface ServiceStatus {
   readonly hasCa: boolean
   readonly caFingerprint: string | null
@@ -99,6 +105,41 @@ export class SslService {
     await this.ensureFilesOnDisk(newLeaf, caState)
     this.restartRequired = true
     return { kind: 'issued', reason: 'first-run' }
+  }
+
+  /**
+   * Re-encrypt the CA private key under a new passphrase. The CA key is the
+   * only passphrase-protected artifact (leaf keys are written plaintext at
+   * 0o600 to the TLS path), so rotation is a single re-wrap: decrypt with the
+   * old passphrase, re-encrypt with the new one, write back atomically.
+   *
+   * `oldPassphrase` must match whatever the CA key is currently wrapped with
+   * — for `env`/`webapp` modes that's the operator's typed value; for
+   * `convenience` mode it's the machine-derived digest, which the caller
+   * can't type, so this route is only meaningful for env/webapp installs.
+   * We verify by attempting decryption and never touch disk on a mismatch.
+   */
+  async rotatePassphrase(oldPassphrase: string, newPassphrase: string): Promise<RotateOutcome> {
+    const caState = await this.deps.store.readCaState()
+    if (caState === null) {
+      return { kind: 'no-ca' }
+    }
+    let caPrivateKey: CryptoKey
+    try {
+      caPrivateKey = await decryptPrivateKeyPkcs8(caState.encryptedKeyPem, oldPassphrase)
+    } catch {
+      return { kind: 'wrong-passphrase' }
+    }
+    try {
+      const reEncrypted = await encryptPrivateKeyPkcs8(caPrivateKey, newPassphrase)
+      await this.deps.store.writeCaState({ ...caState, encryptedKeyPem: reEncrypted })
+    } catch (e: unknown) {
+      return { kind: 'error', message: e instanceof Error ? e.message : String(e) }
+    }
+    // The in-memory passphrase (webapp mode) must follow the re-wrap, or the
+    // next resolve() would still hand back the old value and fail to decrypt.
+    this.deps.passphrase.unlockWith(newPassphrase)
+    return { kind: 'rotated' }
   }
 
   private async bootstrapCa(passphrase: string): Promise<CaStateOnDisk> {

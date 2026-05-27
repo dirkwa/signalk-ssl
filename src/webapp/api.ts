@@ -24,6 +24,12 @@ export type IssueOutcome =
   | { kind: 'locked'; reason: 'passphrase-required' | 'env-missing' }
   | { kind: 'error'; message: string }
 
+export type RotateOutcome =
+  | { kind: 'rotated' }
+  | { kind: 'no-ca' }
+  | { kind: 'wrong-passphrase' }
+  | { kind: 'error'; message: string }
+
 const ADMIN_BASE = '/plugins/signalk-ssl'
 const PUBLIC_BASE = '/signalk/v1/api/ssl'
 
@@ -57,6 +63,22 @@ export const lock = async (): Promise<{ kind: 'locked' }> =>
   json<{ kind: 'locked' }>(
     await fetch(`${ADMIN_BASE}/lock`, { method: 'POST', credentials: 'include' })
   )
+
+export const rotate = async (
+  oldPassphrase: string,
+  newPassphrase: string
+): Promise<RotateOutcome> => {
+  // The route returns non-2xx for the expected "wrong-passphrase"/"no-ca"
+  // outcomes, so parse the JSON body directly instead of going through json()
+  // (which throws on !res.ok and would hide the structured outcome).
+  const res = await fetch(`${ADMIN_BASE}/rotate`, {
+    method: 'POST',
+    credentials: 'include',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ oldPassphrase, newPassphrase })
+  })
+  return (await res.json()) as RotateOutcome
+}
 
 export const caCrtUrl = (): string => `${PUBLIC_BASE}/ca.crt`
 export const caMobileconfigUrl = (): string => `${PUBLIC_BASE}/ca.mobileconfig`

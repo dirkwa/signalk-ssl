@@ -4,6 +4,7 @@ import Wizard from './components/Wizard.js'
 import StatusDashboard from './components/StatusDashboard.js'
 import Distribution from './components/Distribution.js'
 import UnlockPanel from './components/UnlockPanel.js'
+import RotatePanel from './components/RotatePanel.js'
 
 type View = 'loading' | 'wizard' | 'dashboard' | 'unlock' | 'error'
 
@@ -62,6 +63,7 @@ const App = (): React.JSX.Element => {
             }}
           />
           <Distribution status={status} />
+          <RotatePanel />
         </div>
       )}
 

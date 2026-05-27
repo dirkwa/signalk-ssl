@@ -55,6 +55,20 @@ The CA private key is always encrypted at rest with PBES2 / PBKDF2-SHA256 / AES-
 | `env`                   | Reads `SIGNALK_SSL_PASSPHRASE` from the environment at startup.      | Boxes where you set the env var via systemd / Compose.        |
 | `webapp`                | Prompts in the webapp on each restart.                               | High-security setups where the passphrase lives in your head. |
 
+### Changing the passphrase
+
+The **Change passphrase** panel on the status dashboard re-encrypts the CA
+private key under a new passphrase. The CA certificate itself is untouched, so
+every device that already trusts your CA keeps working and no restart is
+needed. Enter the current passphrase plus the new one; a wrong current
+passphrase is rejected without changing anything on disk.
+
+In `env` mode you must **also** update `SIGNALK_SSL_PASSPHRASE` to the new value
+(systemd unit / Compose file), or the next restart won't be able to decrypt the
+CA. In `convenience` mode the passphrase is machine-derived and not typeable, so
+this flow doesn't apply — to re-key a convenience-mode install, switch to `env`
+or `webapp` mode first.
+
 ## Mode of operation
 
 - **Generate** (default) — fresh CA on first run.
@@ -67,6 +81,7 @@ The CA private key is always encrypted at rest with PBES2 / PBKDF2-SHA256 / AES-
 - `POST /plugins/signalk-ssl/renew` — issue / renew leaf (admin auth required)
 - `POST /plugins/signalk-ssl/unlock` — supply passphrase (webapp mode, admin auth required)
 - `POST /plugins/signalk-ssl/lock` — drop in-memory passphrase
+- `POST /plugins/signalk-ssl/rotate` — re-encrypt the CA key under a new passphrase (admin auth required)
 - `GET /signalk/v1/api/ssl/ca.crt` — **public** download of CA cert (PEM)
 - `GET /signalk/v1/api/ssl/ca.mobileconfig` — **public** download of Apple profile
 

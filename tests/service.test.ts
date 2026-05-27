@@ -5,6 +5,7 @@ import { join } from 'node:path'
 import { CertStore } from '../src/plugin/storage.js'
 import { PassphraseSource } from '../src/plugin/passphrase-source.js'
 import { SslService } from '../src/plugin/service.js'
+import { decryptPrivateKeyPkcs8 } from '../src/plugin/crypto.js'
 import { DEFAULT_CONFIG, type SignalkSslConfig } from '../src/plugin/schema.js'
 
 let dataDir: string
@@ -152,5 +153,80 @@ describe('SslService.issueIfNeeded', () => {
     expect(s2.restartRequired).toBe(true)
     svc.acknowledgeRestart()
     expect((await svc.status()).restartRequired).toBe(false)
+  })
+})
+
+describe('SslService.rotatePassphrase', () => {
+  it('re-encrypts the CA key so the new passphrase decrypts and the old does not', async () => {
+    const { svc, store } = await buildService()
+    await svc.issueIfNeeded() // bootstraps the CA under 'test-pp'
+
+    const out = await svc.rotatePassphrase('test-pp', 'new-secret')
+    expect(out.kind).toBe('rotated')
+
+    const ca = await store.readCaState()
+    const rewrapped = ca?.encryptedKeyPem ?? ''
+    expect(rewrapped).not.toBe('')
+    // New passphrase decrypts the re-wrapped key.
+    await expect(decryptPrivateKeyPkcs8(rewrapped, 'new-secret')).resolves.toBeDefined()
+    // Old passphrase no longer works.
+    await expect(decryptPrivateKeyPkcs8(rewrapped, 'test-pp')).rejects.toThrow()
+  })
+
+  it('preserves the CA cert and fingerprint across rotation (key re-wrap only)', async () => {
+    const { svc, store } = await buildService()
+    await svc.issueIfNeeded()
+    const before = await store.readCaState()
+
+    await svc.rotatePassphrase('test-pp', 'new-secret')
+    const after = await store.readCaState()
+
+    expect(after?.certificatePem).toBe(before?.certificatePem)
+    expect(after?.fingerprintSha256).toBe(before?.fingerprintSha256)
+    expect(after?.createdAt).toBe(before?.createdAt)
+    // Only the encrypted key blob changes.
+    expect(after?.encryptedKeyPem).not.toBe(before?.encryptedKeyPem)
+  })
+
+  it('rejects a wrong old passphrase without touching disk', async () => {
+    const { svc, store } = await buildService()
+    await svc.issueIfNeeded()
+    const before = await store.readCaState()
+
+    const out = await svc.rotatePassphrase('wrong-old', 'new-secret')
+    expect(out.kind).toBe('wrong-passphrase')
+
+    const after = await store.readCaState()
+    expect(after?.encryptedKeyPem).toBe(before?.encryptedKeyPem)
+  })
+
+  it('returns no-ca when there is no CA to rotate', async () => {
+    const { svc } = await buildService()
+    const out = await svc.rotatePassphrase('test-pp', 'new-secret')
+    expect(out.kind).toBe('no-ca')
+  })
+
+  it('leaves the service usable after rotation (issueIfNeeded still decrypts)', async () => {
+    const { svc, store } = await buildService()
+    await svc.issueIfNeeded()
+    await svc.rotatePassphrase('test-pp', 'new-secret')
+
+    // A fresh service in webapp mode, unlocked with the NEW passphrase, must
+    // be able to decrypt the re-wrapped CA and re-issue without error.
+    const svc2 = new SslService({
+      store,
+      passphrase: (() => {
+        const p = new PassphraseSource('webapp', store)
+        p.unlockWith('new-secret')
+        return p
+      })(),
+      config: {
+        ...DEFAULT_CONFIG,
+        sans: { dnsNames: ['boat.local'], ipAddresses: [] }
+      },
+      configPath
+    })
+    const out = await svc2.issueIfNeeded()
+    expect(out.kind).toBe('no-op')
   })
 })

@@ -66,6 +66,33 @@ export const registerAdminRoutes = (router: IRouter, deps: ApiDeps): void => {
     deps.service.acknowledgeRestart()
     sendJson(res, 200, { kind: 'locked' })
   })
+
+  router.post(
+    '/rotate',
+    asyncRoute(async (req, res) => {
+      const body = (req.body ?? {}) as { oldPassphrase?: unknown; newPassphrase?: unknown }
+      if (typeof body.oldPassphrase !== 'string' || body.oldPassphrase.length === 0) {
+        sendJson(res, 400, { error: 'oldPassphrase required' })
+        return
+      }
+      if (typeof body.newPassphrase !== 'string' || body.newPassphrase.length === 0) {
+        sendJson(res, 400, { error: 'newPassphrase required' })
+        return
+      }
+      const out = await deps.service.rotatePassphrase(body.oldPassphrase, body.newPassphrase)
+      // Map the outcome to a status: a wrong old passphrase is a client error,
+      // a missing CA is a 409 (nothing to rotate yet), an internal failure 500.
+      const status =
+        out.kind === 'rotated'
+          ? 200
+          : out.kind === 'wrong-passphrase'
+            ? 403
+            : out.kind === 'no-ca'
+              ? 409
+              : 500
+      sendJson(res, status, out)
+    })
+  )
 }
 
 /** Mounted by the server at /signalk/v1/api/* via signalKApiRoutes — read-only public. */
