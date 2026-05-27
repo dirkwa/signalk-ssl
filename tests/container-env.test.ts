@@ -26,10 +26,12 @@ describe('detectContainer', () => {
     expect(detectContainer({ container: 'podman' })).toBe(true)
   })
 
-  it('treats an empty `container` env var as not-a-container (absent /.dockerenv)', () => {
-    // On the CI/dev host neither /.dockerenv nor /run/.containerenv exists, so
-    // an empty env var must not flip the result.
-    expect(detectContainer({ container: '' })).toBe(false)
+  it('treats an empty `container` env var the same as unset', () => {
+    // Environment-agnostic: an empty `container` must not be a positive signal
+    // on its own. Comparing against detectContainer({}) keeps the assertion
+    // valid even on a host where /.dockerenv or /run/.containerenv is present
+    // (e.g. containerized CI), where a hardcoded `false` would be flaky.
+    expect(detectContainer({ container: '' })).toBe(detectContainer({}))
   })
 })
 
