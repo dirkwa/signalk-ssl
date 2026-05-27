@@ -81,7 +81,7 @@ or `webapp` mode first.
 - `POST /plugins/signalk-ssl/renew` — issue / renew leaf (admin auth required)
 - `POST /plugins/signalk-ssl/unlock` — supply passphrase (webapp mode, admin auth required)
 - `POST /plugins/signalk-ssl/lock` — drop in-memory passphrase
-- `POST /plugins/signalk-ssl/rotate` — re-encrypt the CA key under a new passphrase (admin auth required); body `{ oldPassphrase, newPassphrase }`
+- `POST /plugins/signalk-ssl/rotate` — re-encrypt the CA key under a new passphrase (admin auth required)
 - `GET /signalk/v1/api/ssl/ca.crt` — **public** download of CA cert (PEM)
 - `GET /signalk/v1/api/ssl/ca.mobileconfig` — **public** download of Apple profile
 

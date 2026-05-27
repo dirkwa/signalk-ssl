@@ -77,7 +77,11 @@ const RotatePanel = (): React.JSX.Element => {
             }}
             className="mt-4 space-y-3"
           >
+            <label htmlFor="signalk-ssl-old-passphrase" className="sr-only">
+              Current passphrase
+            </label>
             <input
+              id="signalk-ssl-old-passphrase"
               type="password"
               value={oldPassphrase}
               onChange={(e) => {
@@ -85,12 +89,16 @@ const RotatePanel = (): React.JSX.Element => {
               }}
               className="block w-full rounded-lg border border-slate-300 px-4 py-3 font-mono shadow-sm focus:border-sky-500 focus:outline-none focus:ring-sky-500"
               placeholder="current passphrase"
-              autoComplete="off"
+              autoComplete="current-password"
               autoCorrect="off"
               autoCapitalize="off"
               spellCheck={false}
             />
+            <label htmlFor="signalk-ssl-new-passphrase" className="sr-only">
+              New passphrase
+            </label>
             <input
+              id="signalk-ssl-new-passphrase"
               type="password"
               value={newPassphrase}
               onChange={(e) => {
@@ -98,12 +106,16 @@ const RotatePanel = (): React.JSX.Element => {
               }}
               className="block w-full rounded-lg border border-slate-300 px-4 py-3 font-mono shadow-sm focus:border-sky-500 focus:outline-none focus:ring-sky-500"
               placeholder="new passphrase"
-              autoComplete="off"
+              autoComplete="new-password"
               autoCorrect="off"
               autoCapitalize="off"
               spellCheck={false}
             />
+            <label htmlFor="signalk-ssl-confirm-passphrase" className="sr-only">
+              Confirm new passphrase
+            </label>
             <input
+              id="signalk-ssl-confirm-passphrase"
               type="password"
               value={confirm}
               onChange={(e) => {
@@ -111,7 +123,7 @@ const RotatePanel = (): React.JSX.Element => {
               }}
               className="block w-full rounded-lg border border-slate-300 px-4 py-3 font-mono shadow-sm focus:border-sky-500 focus:outline-none focus:ring-sky-500"
               placeholder="confirm new passphrase"
-              autoComplete="off"
+              autoComplete="new-password"
               autoCorrect="off"
               autoCapitalize="off"
               spellCheck={false}
