@@ -14,6 +14,7 @@ import type { CaStateOnDisk, CertStore, LeafStateOnDisk } from './storage.js'
 import type { PassphraseSource } from './passphrase-source.js'
 import type { SignalkSslConfig } from './schema.js'
 import { defaultTargets, installCerts, type InstallTargets } from './cert-installer.js'
+import { checkPermissions } from './container-env.js'
 
 export type IssueOutcome =
   | { readonly kind: 'no-op'; readonly reason: 'still-valid'; readonly decision: RenewalDecision }
@@ -37,6 +38,7 @@ export interface ServiceStatus {
   readonly leafSansDns: readonly string[]
   readonly leafSansIp: readonly string[]
   readonly restartRequired: boolean
+  readonly permissionWarning: string | null
 }
 
 export interface SslServiceDeps {
@@ -50,8 +52,24 @@ const MS_PER_DAY = 24 * 60 * 60 * 1000
 
 export class SslService {
   private restartRequired = false
+  private permissionWarning: string | null = null
 
   constructor(private readonly deps: SslServiceDeps) {}
+
+  /**
+   * Probe write access to the data dir and the cert install path. On a
+   * rootless-Podman UID-shift the bind-mounted host dir looks present but
+   * rejects child creation; this surfaces that as an operator-facing warning
+   * (logged at start, exposed via /status) rather than failing silently on
+   * the first cert write. Idempotent — safe to call on every start.
+   */
+  async checkWritePermissions(): Promise<string | null> {
+    this.permissionWarning = await checkPermissions({
+      dataDir: this.deps.store.dataDir,
+      configPath: this.deps.configPath
+    })
+    return this.permissionWarning
+  }
 
   targets(): InstallTargets {
     return defaultTargets(this.deps.configPath)
@@ -233,7 +251,8 @@ export class SslService {
         leafDaysRemaining: null,
         leafSansDns: [],
         leafSansIp: [],
-        restartRequired: this.restartRequired
+        restartRequired: this.restartRequired,
+        permissionWarning: this.permissionWarning
       }
     }
     const decision = needsRenewal(
@@ -250,7 +269,8 @@ export class SslService {
       leafDaysRemaining: Math.round(decision.daysUntilExpiry),
       leafSansDns: this.deps.config.sans.dnsNames.map((d) => sanitizeHostname(d).toLowerCase()),
       leafSansIp: this.deps.config.sans.ipAddresses,
-      restartRequired: this.restartRequired
+      restartRequired: this.restartRequired,
+      permissionWarning: this.permissionWarning
     }
   }
 

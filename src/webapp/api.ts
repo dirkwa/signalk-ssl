@@ -12,6 +12,7 @@ export interface Status {
   leafSansDns: string[]
   leafSansIp: string[]
   restartRequired: boolean
+  permissionWarning: string | null
 }
 
 export interface LocalIps {
