@@ -53,7 +53,7 @@ jobs:
         # Pin to the latest 11.x to keep the publish flow current.
         run: npm install -g npm@^11
 
-      - run: npm install --legacy-peer-deps
+      - run: npm ci
 
       - name: Format check
         run: npm run format:check

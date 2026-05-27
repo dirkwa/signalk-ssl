@@ -1,6 +1,6 @@
 {
   "name": "signalk-ssl",
-  "version": "0.1.6",
+  "version": "0.2.0",
   "description": "SSL/TLS certificate management plugin for SignalK Node Server — generate a local CA, issue server certs, distribute the root via QR to phones/tablets",
   "type": "module",
   "main": "dist/plugin/index.js",
