@@ -97,6 +97,15 @@ The renewal scheduler runs daily and re-issues whenever the configured SANs no l
 
 SignalK refuses to start with a TLS key that isn't `0600`. The plugin writes `0600` and re-chmods on every install. If you see this error, check that no other process has rewritten the file.
 
+### "Cannot write the CA / certificate files" (rootless Podman UID shift)
+
+The plugin probes write access to its data dir and the cert path at startup. Inside **rootless Podman**, a bind-mounted host directory can look present but reject child creation when the directory is owned by a UID that doesn't match the container's effective UID — the classic UID-shift symptom. When this happens the plugin logs a warning and shows a red banner on the status dashboard instead of silently failing on the first cert write.
+
+Fixes:
+
+- Run the container with `--userns=keep-id` (Podman) so in-container writes land as the host owner. On hosts where the SignalK user isn't UID 1000, use the explicit form `--userns=keep-id:uid=<in-image-uid>,gid=<in-image-gid>`.
+- Or `chown` the mounted directory to the UID the container process runs as.
+
 ### "I rotated the CA and now every phone is broken"
 
 That's the cost of rotating a CA. Every device needs to re-install the new root. The webapp's "Regenerate CA" button shows this consequence before it lets you proceed.

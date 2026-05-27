@@ -60,6 +60,14 @@ const pluginConstructor: PluginConstructor = (app: ServerAPI): Plugin => {
       }
       void store.init().then(async () => {
         try {
+          const warning = await svcLocal.checkWritePermissions()
+          if (warning !== null) {
+            app.error(`${PLUGIN_ID} permission warning: ${warning}`)
+          }
+        } catch (e: unknown) {
+          app.error(`${PLUGIN_ID} permission probe failed: ${String(e)}`)
+        }
+        try {
           const outcome = await svcLocal.issueIfNeeded()
           app.debug(`${PLUGIN_ID} initial issueIfNeeded: ${JSON.stringify(outcome)}`)
         } catch (e: unknown) {

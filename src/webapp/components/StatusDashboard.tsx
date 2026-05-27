@@ -40,6 +40,12 @@ const StatusDashboard = ({ status, onChange }: Props): React.JSX.Element => {
 
   return (
     <div className="space-y-4">
+      {status.permissionWarning !== null && (
+        <div className="rounded-xl border border-red-300 bg-red-50 p-4 text-red-900">
+          <p className="font-medium">Cannot write the CA / certificate files.</p>
+          <p className="mt-1 text-sm text-red-800">{status.permissionWarning}</p>
+        </div>
+      )}
       {status.restartRequired && (
         <div className="rounded-xl border border-amber-300 bg-amber-50 p-4 text-amber-900">
           <p className="font-medium">Certificate updated — restart SignalK to activate it.</p>
