@@ -1,0 +1,294 @@
+language: en-US
+
+reviews:
+  profile: assertive
+  auto_review:
+    enabled: true
+    auto_incremental_review: true
+    drafts: false
+    ignore_title_keywords:
+      - "chore(release):"
+      - "chore(deps):"
+      - "chore(deps-dev):"
+      - "[skip review]"
+      - "WIP"
+    ignore_usernames:
+      - "release-please[bot]"
+      - "renovate[bot]"
+      - "dependabot[bot]"
+      - "github-actions[bot]"
+
+  path_filters:
+    - "!**/package-lock.json"
+    - "!**/yarn.lock"
+    - "!**/pnpm-lock.yaml"
+    - "!**/*.min.js"
+    - "!**/*.min.css"
+    - "!**/dist/**"
+    - "!**/public/**"
+    - "!**/node_modules/**"
+    - "!**/coverage/**"
+
+  high_level_summary_instructions: |
+    Write summaries in present tense. Describe what the code does, not what
+    it did. Skip filler like "This PR" — go straight to the change.
+
+  path_instructions:
+    - path: '**/*'
+      instructions: |
+        ## Scope
+
+        Focus on files changed since `main`. Think about how changes interact
+        with the rest of the plugin, not just the diff in isolation.
+
+        signalk-ssl is a **SignalK Node Server plugin** that manages a local
+        Certificate Authority and issues HTTPS leaf certs for the server. It
+        is pure in-process Node — no sidecar containers, no `signalk-container`
+        dependency. Runs identically on bare-metal Pi and inside the SignalK
+        Docker image.
+
+        Three responsibilities, in order of criticality:
+        1. CA + leaf cert management (crypto correctness, key encryption at rest)
+        2. Cert installation onto `${app.config.configPath}` with strict perms
+        3. CA distribution UX (React 19 webapp with QR-code panel)
+
+        Reviews must respect the crypto > install > UX precedence: a UX
+        concern doesn't override a crypto invariant.
+
+        ## ESM / TypeScript strict / Node 22+
+
+        - `"type": "module"` — relative imports use the `.js` suffix (NodeNext
+          resolution). Don't suggest dropping the suffix.
+        - tsconfig is `strictTypeChecked` on `src/plugin/**` (via
+          typescript-eslint). Avoid `any`. Use `unknown` + runtime narrowing
+          at boundaries (HTTP request bodies, file contents). TypeBox handles
+          route-input validation.
+        - Node `>= 22.5.0` is the floor — needed for `webcrypto` and the
+          native ESM-via-require unwrap signalk-server uses to load the
+          plugin. When bumping the floor, update **all** of: `package.json`
+          engines, `@types/node` devDep, `.github/dependabot.yml` comment,
+          README prerequisites line.
+
+        ## `--ignore-scripts` install contract (CRITICAL)
+
+        The SignalK Appstore installs plugins with `npm install
+        --ignore-scripts`. This means:
+
+        - No `postinstall` / `prepare` lifecycle scripts run on the user's
+          machine. The published tarball is what executes.
+        - `dist/plugin/` and `public/` **must** be pre-built and shipped in
+          the package (declared in `package.json` `files`).
+        - `prepublishOnly` runs in CI before `npm publish` — that's the only
+          build step the user benefits from.
+        - Runtime `dependencies` must be **pure JS**. No native modules, no
+          `node-gyp` users, no `sharp`, no `bcrypt` — flag any addition to
+          `dependencies` (not `devDependencies`) that has native bindings.
+        - Build-time-only tools (Vite, Tailwind, sharp) belong in
+          `devDependencies`.
+
+        Flag any PR that adds a `postinstall`/`prepare` script, or that
+        ships build inputs without corresponding `dist`/`public` artifacts.
+
+        ## Two route surfaces, two auth policies
+
+        signalk-server applies `adminAuthenticationMiddleware` to everything
+        under `/plugins/*` with no opt-out
+        (`tokensecurity.ts:762`). The QR-code flow needs `ca.crt` and
+        `ca.mobileconfig` to be reachable by phones **without** SignalK
+        accounts.
+
+        - Admin routes (`/status`, `/renew`, `/unlock`, `/lock`,
+          `/api/local-ips`) → `plugin.registerWithRouter`, mounted at
+          `/plugins/signalk-ssl/*`, admin auth enforced.
+        - Public read-only routes (`/ssl/ca.crt`, `/ssl/ca.mobileconfig`)
+          → `plugin.signalKApiRoutes`, mounted at `/signalk/v1/api/*` where
+          the server applies only `http_authorize(false)`.
+
+        Flag any new route that:
+        - Performs a mutation but is exposed via `signalKApiRoutes`
+          (writeAuthenticationMiddleware will block POST/PUT/DELETE, but
+          a clever GET that mutates state slips through).
+        - Returns secret material (the CA *private* key, leaf private key,
+          passphrase) on *either* surface.
+        - Defaults to the public surface for ambiguous cases. Default to
+          admin auth — moving a route out of admin is easy; pulling back a
+          leaked secret is not.
+
+        ## Idempotency on plugin enable
+
+        `start()` must never regenerate the CA if one already exists, never
+        re-issue a leaf that still covers all configured SANs.
+        `SslService.issueIfNeeded()` is the single entry point and handles
+        this. Toggling the plugin off and on in the admin UI must be a
+        no-op for crypto state.
+
+        Flag changes that:
+        - Call `bootstrapCa()` / `signLeaf()` outside `issueIfNeeded()`.
+        - Add a code path that writes `caState.json` or `leafState.json`
+          without going through `SslStore`.
+        - Weaken the "second call is a no-op" regression test in
+          `tests/service.test.ts`.
+
+        ## Crypto invariants — flag any change to these without strong justification
+
+        - **Clock-skew backdate**: `signLeaf` sets `notBefore = now -
+          clockSkewHours * 1h` (default 24h). iOS Safari rejects leafs with
+          a `notBefore` in the device's future, even by seconds — common on
+          offline boats whose phone clocks drift. Don't remove or shorten
+          the backdate.
+        - **Encrypted PKCS#8 envelope**: CA private key is stored as
+          `PBES2 / PBKDF2-SHA256 / AES-256-CBC` PKCS#8 PEM. Standard format
+          (`openssl pkcs8` can decrypt it). Reject any move to a custom JSON
+          envelope or a non-standard cipher. AES-256-CBC is the strongest
+          PBES2 cipher Node's OpenSSL bindings expose.
+        - **Convenience-mode passphrase derivation**: `derivePassphraseFromMachine`
+          binds the wrapping passphrase to host identity via iterated
+          SHA-256 over `${machineId}|${envelope.salt}` with N iterations.
+          **Changing this function breaks every existing convenience-mode
+          install** — they can't decrypt their CA key anymore. If a change
+          is genuinely needed (e.g. switching to PBKDF2), it MUST bump the
+          envelope schema version and ship a migration that detects old
+          envelopes and re-wraps. Flag any silent change to the derivation.
+        - **0600 perms on cert, key, AND chain in `cert-installer.ts`**:
+          `installCerts` writes all three at `0o600` and `chmod`s again.
+          signalk-server's `hasStrictPermissions` (`src/security.ts`)
+          applies the same `^-r[-w][-x]------$` regex to both cert and key
+          — a world-readable cert refuses to boot just like a world-readable
+          key would. Don't loosen any of the three `PEM_*_MODE` constants in
+          `cert-installer.ts` to `0o644`. Don't drop the belt-and-braces
+          `chmod` — some bind-mounted volumes widen the inherited umask.
+          The separate `PEM_CERT_MODE` in `storage.ts` is for the plugin's
+          *internal* CA/leaf state files under `~/.signalk/plugin-config-data/`,
+          which signalk-server does **not** read — `0o644` is intentional
+          there and not subject to this rule.
+
+        ## SAN provenance trap (for future auto-discovery work)
+
+        Today, `needsRenewal` is purely "do required SANs match cert SANs".
+        Users explicitly enter SANs in the plugin config. The webapp shows
+        discovered LAN IPs as a suggestion only.
+
+        If a PR adds auto-discovery of LAN IPs into the renewed SAN list,
+        it MUST also store provenance (auto vs user-entered) so that a user
+        removing an auto-IP doesn't see it auto-re-added on the next
+        renewal. Flag any "fold discovered IPs into SAN list" change that
+        doesn't carry provenance metadata.
+
+        ## Cert destination path lives outside per-plugin data dir
+
+        Plugin data lives under `app.getDataDirPath()`
+        (`~/.signalk/plugin-config-data/signalk-ssl/`). The TLS cert that
+        signalk-server reads at boot must go to
+        `${app.config.configPath}/ssl-{cert,key,chain}.pem`
+        (signalk-server's `src/security.ts` looks there, not in the plugin
+        data dir).
+
+        `app.config` is **not** in `@signalk/server-api`'s typed surface —
+        it's a runtime field. `src/plugin/index.ts` defines
+        `ExtendedServerAPI` to access it without `any`. New runtime-only
+        fields should extend `ExtendedServerAPI`, not cast to `any` at the
+        call site.
+
+        ## Webapp build output
+
+        Vite builds `src/webapp/` into `public/` at the repo root with
+        `emptyOutDir: true`. Don't drop static files directly into `public/`
+        — they'll be wiped on next build. New assets go under `src/webapp/`.
+
+        `dist/` and `public/` both ship in the published tarball per the
+        `--ignore-scripts` contract; both must build cleanly before any
+        release.
+
+        ## Test coverage targets
+
+        Vitest coverage on `src/plugin/**`. Aim for >90% on the high-risk
+        modules: `crypto/leaf.ts` (signLeaf, needsRenewal, sans),
+        `crypto/ca.ts` (bootstrapCa, key encryption), `service.ts`
+        (issueIfNeeded), `passphrase-source.ts` (derivation).
+
+        CA generation and leaf signing are 50–100ms each. Tests should
+        reuse a shared CA per file via a setup function rather than
+        regenerating per-test (see `tests/crypto/leaf.test.ts`). The
+        convenience-mode iteration count is parameterised
+        (`convenienceIterations`) so tests can use 100 instead of 200_000.
+
+        ## Echo comments
+
+        Flag any comment that merely restates what the code already says.
+        Examples to flag:
+        - `// Hash the input` above `const h = sha256(input)`
+        - `// Loop over SANs` above a `for (const san of sans)` loop
+        Replace with comments explaining *why*, not *what*. Or delete.
+
+        ## Documentation drift risk
+
+        Flag any `.md` file that contains:
+        - Specific code snippets, function signatures, file paths, or
+          config values likely to fall out of sync as code evolves.
+        - Step-by-step build/development instructions that duplicate or
+          shadow the scripts in `package.json`.
+        - Implementation status, progress markers ("Step 3:…"), or
+          "currently implemented as X" wording. Build narratives belong in
+          PR descriptions or commit messages, not in repo docs.
+
+        Architecture decisions and crypto rationale are fine and belong in
+        AGENTS.md.
+
+        ## Leftover crumbs from intermediate commits
+
+        Flag references in the current diff to symbols, files, or
+        approaches that no longer exist on this branch — old function
+        names in comments, dangling imports, stale TODOs from a superseded
+        approach.
+
+        ## Unchecked items in test plans
+
+        If the PR description has a checklist with unchecked items, flag
+        it. Either the work isn't done, or the unchecked items should be
+        removed before merge.
+
+        ## Commit / PR conventions
+
+        - Branch names use **hyphens**, not slashes (`fix-leaf-renewal`,
+          not `fix/leaf-renewal`).
+        - Angular conventional commits: `<type>(<scope>): <subject>`
+          (`feat`, `fix`, `chore`, `docs`, `ci`, `test`, `refactor`,
+          `perf`). Subject ≤ 50 chars, imperative mood, no period.
+        - One logical change per commit and per PR. If a PR would produce
+          two distinct lines in the auto-generated GitHub Release notes,
+          it should be two PRs. A "while I was in here, I also fixed X"
+          bundle is rejected.
+        - **No AI attribution** in commits, PR bodies, or code. Don't
+          mention Claude, AI, or add `Co-Authored-By` trailers.
+        - **No version bumps** in feature/fix PRs. `chore(release): X.Y.Z`
+          is its own PR, only when explicitly requested.
+        - PR descriptions: `## Summary` (why-not-what) and `## Tested`
+          (only what actually ran — no speculative test plans, no
+          checkbox lists with unchecked items).
+
+        ## What NOT to flag
+
+        These are intentional and load-bearing:
+
+        - The `0o600` mode + post-`chmod` on cert, key, and chain in
+          `cert-installer.ts` — belt-and-braces for bind-mounted volumes
+          (`signalk-server` refuses to start on `0o644`).
+        - The 24-hour `notBefore` backdate in `signLeaf` — fixes offline
+          boats with stale phone clocks.
+        - The encrypted PKCS#8 PEM format for the CA key — standard,
+          `openssl pkcs8` can read it.
+        - The `passphrase-source.ts` `convenience` mode deriving a
+          non-typeable 32-byte hex digest — intentional: convenience mode
+          *cannot* expose a user-typeable passphrase.
+        - The two-surface route mounting in `api.ts` (admin via
+          `registerWithRouter`, public via `signalKApiRoutes`) — the only
+          way to expose CA distribution to phones without SignalK
+          accounts.
+        - `as const` literals on TypeBox schema constants — required for
+          TypeScript narrowing in route handlers.
+        - The `ExtendedServerAPI` interface in `src/plugin/index.ts` — the
+          documented way to access runtime-only `app.config` without
+          `any`.
+        - `clockSkewHours` and `convenienceIterations` exposed as
+          parameters — required by the test suite to keep runtime under
+          a few seconds.
