@@ -8,7 +8,7 @@ export interface InstallTargets {
 }
 
 const PEM_KEY_MODE = 0o600
-const PEM_CERT_MODE = 0o644
+const PEM_CERT_MODE = 0o600
 
 export const defaultTargets = (configPath: string): InstallTargets => ({
   certPath: join(configPath, 'ssl-cert.pem'),
@@ -34,7 +34,8 @@ const atomicWrite = async (
  * Atomically install the leaf certificate, key, and chain into the paths
  * signalk-server reads at boot (`${configPath}/ssl-cert.pem`,
  * `ssl-key.pem`, `ssl-chain.pem`). signalk-server enforces strict perms on
- * the key file (refuses to start if it's group/world-readable).
+ * both files (refuses to start if either is group/world-readable; see
+ * `hasStrictPermissions` in signalk-server's `src/security.ts`).
  */
 export const installCerts = async (
   targets: InstallTargets,

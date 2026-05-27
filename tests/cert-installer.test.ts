@@ -15,7 +15,7 @@ afterEach(async () => {
 })
 
 describe('installCerts', () => {
-  it('writes ssl-cert.pem, ssl-key.pem, ssl-chain.pem with strict key perms', async () => {
+  it('writes ssl-cert.pem, ssl-key.pem, ssl-chain.pem with 0600 perms', async () => {
     const targets = defaultTargets(dir)
     const cert = '-----BEGIN CERTIFICATE-----\nAAAA\n-----END CERTIFICATE-----'
     const key = '-----BEGIN PRIVATE KEY-----\nBBBB\n-----END PRIVATE KEY-----'
@@ -35,7 +35,9 @@ describe('installCerts', () => {
       const keyStat = await stat(targets.keyPath)
       expect((keyStat.mode & 0o777) >>> 0).toBe(0o600)
       const certStat = await stat(targets.certPath)
-      expect((certStat.mode & 0o777) >>> 0).toBe(0o644)
+      expect((certStat.mode & 0o777) >>> 0).toBe(0o600)
+      const chainStat = await stat(targets.chainPath)
+      expect((chainStat.mode & 0o777) >>> 0).toBe(0o600)
     }
   })
 
