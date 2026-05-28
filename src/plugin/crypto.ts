@@ -53,10 +53,15 @@ const PBKDF2_DEFAULT_ITERATIONS = 600_000
 
 const generateSerialNumber = (): string => {
   const bytes = randomBytes(16)
-  // Clear leading bit so DER encoding stays positive (an unsigned integer in
-  // X.509 must not start with 0x80+; setting bit 7 of byte 0 to 0 enforces it).
+  // Two constraints on byte 0:
+  //  - bit 7 must be clear, so DER reads the value as a positive INTEGER
+  //    (a leading byte ≥ 0x80 would otherwise be misread as negative).
+  //  - it must be non-zero, otherwise X.509 parsers (including @peculiar/x509)
+  //    strip the leading 0x00 padding and our reported serial drifts away
+  //    from what we asked for — fine for uniqueness but it makes the
+  //    "first hex pair < 0x80" round-trip assertion flake on ~1-in-128 runs.
   const firstByte = bytes[0] ?? 0
-  bytes[0] = firstByte & 0x7f
+  bytes[0] = (firstByte & 0x7f) | 0x01
   return bytes.toString('hex')
 }
 
