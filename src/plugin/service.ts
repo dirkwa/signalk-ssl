@@ -314,6 +314,38 @@ export const discoverLocalIps = (): string[] => {
 }
 
 /**
+ * True for RFC-1918 private IPv4 ranges (10/8, 172.16/12, 192.168/16) — the
+ * address space a boat LAN actually uses. Public IPs are excluded so we never
+ * bake a routable address into a long-lived cert.
+ */
+const isPrivateIpv4 = (ip: string): boolean => {
+  const octets = ip.split('.').map(Number)
+  if (octets.length !== 4 || octets.some((o) => Number.isNaN(o) || o < 0 || o > 255)) {
+    return false
+  }
+  const [a, b] = octets as [number, number, number, number]
+  if (a === 10) {
+    return true
+  }
+  if (a === 172 && b >= 16 && b <= 31) {
+    return true
+  }
+  if (a === 192 && b === 168) {
+    return true
+  }
+  return false
+}
+
+/**
+ * Discovered LAN IPv4 addresses suitable for seeding into the cert's
+ * `ipAddresses` SAN default — same source as {@link discoverLocalIps} but
+ * filtered to RFC-1918 private ranges. Returned as a non-forcing suggestion;
+ * the user can trim any (e.g. a VPN-overlay address) in the config form before
+ * saving.
+ */
+export const discoverPrivateLanIps = (): string[] => discoverLocalIps().filter(isPrivateIpv4)
+
+/**
  * Derive a DNS-name suggestion to add as a SAN, given the raw hostname
  * signalk-server uses for its mDNS advertisement
  * (`app.config.getExternalHostname()`).

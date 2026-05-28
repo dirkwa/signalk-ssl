@@ -7,7 +7,12 @@ import type { Plugin, PluginConstructor, ServerAPI } from '@signalk/server-api'
 import type { IRouter } from 'express'
 import { CertStore } from './storage.js'
 import { PassphraseSource } from './passphrase-source.js'
-import { SslService, discoverAdvertisedHostname, type ServiceStatus } from './service.js'
+import {
+  SslService,
+  discoverAdvertisedHostname,
+  discoverPrivateLanIps,
+  type ServiceStatus
+} from './service.js'
 import { startRenewalScheduler, type SchedulerHandle } from './scheduler.js'
 import { buildPublicRoutes, registerAdminRoutes } from './api.js'
 import { buildConfigSchema, DEFAULT_CONFIG, type SignalkSslConfig } from './schema.js'
@@ -90,9 +95,13 @@ const pluginConstructor: PluginConstructor = (app: ServerAPI): Plugin => {
     name: PLUGIN_NAME,
     description: PLUGIN_DESCRIPTION,
     // Re-evaluated by signalk-server on every config-screen load, so the
-    // discovered hostname is injected as the dnsNames default and shows up
-    // pre-filled in the form *before* the plugin is enabled.
-    schema: () => buildConfigSchema(discoverAdvertisedHostname(rawHostname())),
+    // discovered hostname and private-LAN IPs are injected as SAN defaults and
+    // show up pre-filled in the form *before* the plugin is enabled.
+    schema: () =>
+      buildConfigSchema({
+        dnsName: discoverAdvertisedHostname(rawHostname()),
+        ipAddresses: discoverPrivateLanIps()
+      }),
 
     start(rawConfig: object, _restart: (newConfiguration: object) => void): void {
       config = resolveConfig(rawConfig)

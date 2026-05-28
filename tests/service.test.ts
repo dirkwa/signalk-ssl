@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { CertStore } from '../src/plugin/storage.js'
 import { PassphraseSource } from '../src/plugin/passphrase-source.js'
-import { SslService } from '../src/plugin/service.js'
+import { SslService, discoverLocalIps, discoverPrivateLanIps } from '../src/plugin/service.js'
 import { decryptPrivateKeyPkcs8 } from '../src/plugin/crypto.js'
 import { DEFAULT_CONFIG, type SignalkSslConfig } from '../src/plugin/schema.js'
 
@@ -36,6 +36,31 @@ afterEach(async () => {
   if (configPath) {
     await rm(configPath, { recursive: true, force: true })
   }
+})
+
+describe('discoverPrivateLanIps', () => {
+  const isPrivate = (ip: string): boolean => {
+    const [a, b] = ip.split('.').map(Number)
+    return a === 10 || (a === 172 && b >= 16 && b <= 31) || (a === 192 && b === 168)
+  }
+
+  it('returns only RFC-1918 private IPv4s, all drawn from discoverLocalIps', () => {
+    const all = new Set(discoverLocalIps())
+    const priv = discoverPrivateLanIps()
+    for (const ip of priv) {
+      expect(all.has(ip)).toBe(true)
+      expect(isPrivate(ip)).toBe(true)
+    }
+  })
+
+  it('excludes any non-private address that discoverLocalIps surfaced', () => {
+    const priv = new Set(discoverPrivateLanIps())
+    for (const ip of discoverLocalIps()) {
+      if (!isPrivate(ip)) {
+        expect(priv.has(ip)).toBe(false)
+      }
+    }
+  })
 })
 
 describe('SslService.issueIfNeeded', () => {
