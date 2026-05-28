@@ -10,7 +10,7 @@ SSL/TLS certificate management for [SignalK Node Server](https://signalk.org/).
 - **One-scan device trust** — a built-in QR code installs the CA root on iOS (`.mobileconfig`) and Android / desktop (`.crt`); no SSH, no file copying, no per-device fiddling.
 - **Set-and-forget renewal** — certificates auto-renew before expiry and re-issue automatically when your SANs change, with a 24-hour clock-skew backdate so an offline boat's lagging phone clock never breaks trust.
 - **Smart, server-aware defaults** — pre-fills the certificate name with the exact `.local` hostname your server broadcasts on mDNS, and shows live certificate health (name + days remaining) right in the admin status line.
-- **Encrypted at rest, your choice of key** — the CA private key is always stored as encrypted PKCS#8, with convenience (no typing), environment-variable, or webapp-prompt passphrase modes.
+- **Encrypted at rest, your choice of key** — the CA private key is always stored as encrypted PKCS#8, with `convenience` (no typing), `env` (environment variable), or `webapp` (prompt-based) passphrase modes.
 - **Runs anywhere SignalK runs** — pure-JS, no native modules; works identically on bare-metal, systemd, and Docker / Podman installs, and is tuned for drop-in use with the SignalK Universal Installer.
 
 ## Why
