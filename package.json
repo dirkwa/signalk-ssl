@@ -58,7 +58,7 @@
     "webapp": {
       "name": "SignalK SSL",
       "description": "SSL/TLS certificate management for SignalK",
-      "location": "/plugins/signalk-ssl/"
+      "location": "/signalk-ssl/"
     }
   },
   "peerDependencies": {
