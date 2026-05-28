@@ -2,7 +2,16 @@
 
 SSL/TLS certificate management for [SignalK Node Server](https://signalk.org/).
 
-Generates a local Certificate Authority, signs server certificates for your boat's hostnames and IP addresses, and provides a QR code so phones and tablets can install the CA root without SSH.
+`signalk-ssl` turns HTTPS on your SignalK server from an SSH-and-`openssl` chore into a two-minute, point-and-click task — it runs a local Certificate Authority, issues and auto-renews trusted server certificates, and hands you a QR code to install the CA root on every phone and tablet aboard. Built to slot seamlessly into the [SignalK Universal Installer](https://github.com/dirkwa/signalk-universal-installer) stack, it also runs perfectly standalone on any vanilla SignalK Node Server.
+
+## Features
+
+- **Local CA + trusted certs, zero terminal** — generates an EC Certificate Authority and signs HTTPS certificates for your boat's hostname and IPs, so browsers show a green padlock instead of a scary warning.
+- **One-scan device trust** — a built-in QR code installs the CA root on iOS (`.mobileconfig`) and Android / desktop (`.crt`); no SSH, no file copying, no per-device fiddling.
+- **Set-and-forget renewal** — certificates auto-renew before expiry and re-issue automatically when your SANs change, with a 24-hour clock-skew backdate so an offline boat's lagging phone clock never breaks trust.
+- **Smart, server-aware defaults** — pre-fills the certificate name with the exact `.local` hostname your server broadcasts on mDNS, and shows live certificate health (name + days remaining) right in the admin status line.
+- **Encrypted at rest, your choice of key** — the CA private key is always stored as encrypted PKCS#8, with `convenience` (no typing), `env` (environment variable), or `webapp` (prompt-based) passphrase modes.
+- **Runs anywhere SignalK runs** — pure-JS, no native modules; works identically on bare-metal, systemd, and Docker / Podman installs, and is tuned for drop-in use with the SignalK Universal Installer.
 
 ## Why
 
