@@ -312,3 +312,52 @@ export const discoverLocalIps = (): string[] => {
   }
   return [...out]
 }
+
+/**
+ * Derive a DNS-name suggestion to add as a SAN, given the raw hostname
+ * signalk-server uses for its mDNS advertisement
+ * (`app.config.getExternalHostname()`).
+ *
+ * Two flavours of input come through that source:
+ *
+ *   1. A bare host like `pi5radar` or `pi5radar.local` — signalk-server's
+ *      `mdns.js` strips trailing `.` and `.local` then advertises as
+ *      `<stripped>.local`. We mirror that and return `pi5radar.local`.
+ *   2. An FQDN like `signalk.example.com` (typically from `EXTERNALHOST=` or
+ *      `settings.proxy_host` — a reverse-proxied deploy). Suggesting
+ *      `signalk.example.com.local` would be wrong; the public FQDN is
+ *      already the right SAN. Return it unchanged.
+ *
+ * Returns `null` when no useful suggestion can be made:
+ *
+ *   - 12-hex-digit container IDs (`os.hostname()` inside a bridge-network
+ *     container without `--hostname` is the random container ID).
+ *   - `localhost` / `hostname_not_available` (signalk-server's fallback when
+ *     `os.hostname()` throws).
+ *   - Empty or whitespace-only strings.
+ */
+export const discoverAdvertisedHostname = (rawHostname: string): string | null => {
+  const trimmed = rawHostname.trim().replace(/\.$/, '')
+  if (trimmed.length === 0) {
+    return null
+  }
+  if (trimmed === 'localhost' || trimmed === 'hostname_not_available') {
+    return null
+  }
+  // Bare hostname or `<host>.local` → suggest `<host>.local`.
+  if (/\.local$/i.test(trimmed)) {
+    const bare = trimmed.replace(/\.local$/i, '')
+    if (/^[0-9a-f]{12}$/.test(bare)) {
+      return null
+    }
+    return `${bare}.local`
+  }
+  if (trimmed.includes('.')) {
+    // FQDN — suggest as-is. Reverse-proxied deploys want the public name.
+    return trimmed
+  }
+  if (/^[0-9a-f]{12}$/.test(trimmed)) {
+    return null
+  }
+  return `${trimmed}.local`
+}

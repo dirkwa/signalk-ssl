@@ -1,7 +1,7 @@
 import type { IRouter, Request, Response, NextFunction } from 'express'
 import { buildMobileconfig } from './mobileconfig.js'
 import type { SslService, ServiceStatus } from './service.js'
-import { discoverLocalIps } from './service.js'
+import { discoverAdvertisedHostname, discoverLocalIps } from './service.js'
 import type { SignalkSslConfig } from './schema.js'
 import type { PassphraseSource } from './passphrase-source.js'
 import type { CertStore } from './storage.js'
@@ -11,6 +11,12 @@ export interface ApiDeps {
   readonly store: CertStore
   readonly passphrase: PassphraseSource
   readonly config: SignalkSslConfig
+}
+
+export interface AdminApiDeps extends ApiDeps {
+  /** Returns the raw hostname signalk-server uses for mDNS advertisement,
+   * or '' if unavailable. See ExtendedServerAPI in src/plugin/index.ts. */
+  readonly getRawHostname: () => string
 }
 
 const sendJson = (res: Response, status: number, body: unknown): void => {
@@ -26,7 +32,7 @@ const asyncRoute =
   }
 
 /** Mounted by the server at /plugins/signalk-ssl/* — admin auth applied. */
-export const registerAdminRoutes = (router: IRouter, deps: ApiDeps): void => {
+export const registerAdminRoutes = (router: IRouter, deps: AdminApiDeps): void => {
   router.get(
     '/status',
     asyncRoute(async (_req, res) => {
@@ -36,7 +42,10 @@ export const registerAdminRoutes = (router: IRouter, deps: ApiDeps): void => {
   )
 
   router.get('/api/local-ips', (_req, res) => {
-    sendJson(res, 200, { ipAddresses: discoverLocalIps() })
+    sendJson(res, 200, {
+      ipAddresses: discoverLocalIps(),
+      dnsName: discoverAdvertisedHostname(deps.getRawHostname())
+    })
   })
 
   router.post(

@@ -17,6 +17,10 @@ export interface Status {
 
 export interface LocalIps {
   ipAddresses: string[]
+  /** The `.local` name signalk-server is advertising on mDNS, derived from
+   * the server's `getExternalHostname()`. Null when no useful suggestion
+   * can be made (container-ID hostnames, `localhost`, etc.). */
+  dnsName: string | null
 }
 
 export type IssueOutcome =

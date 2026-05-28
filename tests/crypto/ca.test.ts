@@ -68,9 +68,14 @@ describe('generateCa', () => {
     const certA = new X509Certificate(a.certificatePem)
     const certB = new X509Certificate(b.certificatePem)
     expect(certA.serialNumber).not.toBe(certB.serialNumber)
-    // Hex, no leading 0x80+ byte (positive integer).
+    // Full 16-byte hex (32 chars), first byte non-zero (so DER doesn't strip
+    // a leading 0x00 and shift the parser's view) and < 0x80 (so the DER
+    // INTEGER is unambiguously positive without us prepending a 0x00 byte).
+    expect(certA.serialNumber).toHaveLength(32)
     expect(/^[0-9a-f]+$/i.test(certA.serialNumber)).toBe(true)
-    expect(parseInt(certA.serialNumber.slice(0, 2), 16)).toBeLessThan(0x80)
+    const firstByte = parseInt(certA.serialNumber.slice(0, 2), 16)
+    expect(firstByte).toBeGreaterThan(0)
+    expect(firstByte).toBeLessThan(0x80)
   })
 
   it('computeSpkiFingerprint is stable for the same key', async () => {
