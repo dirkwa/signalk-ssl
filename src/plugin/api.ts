@@ -17,6 +17,10 @@ export interface AdminApiDeps extends ApiDeps {
   /** Returns the raw hostname signalk-server uses for mDNS advertisement,
    * or '' if unavailable. See ExtendedServerAPI in src/plugin/index.ts. */
   readonly getRawHostname: () => string
+  /** Called with each fresh status the admin routes compute, so the plugin can
+   * keep its synchronous statusMessage() cache current (the webapp polls
+   * /status, and /renew recomputes it). Optional. */
+  readonly onStatus?: (status: ServiceStatus) => void
 }
 
 const sendJson = (res: Response, status: number, body: unknown): void => {
@@ -37,6 +41,7 @@ export const registerAdminRoutes = (router: IRouter, deps: AdminApiDeps): void =
     '/status',
     asyncRoute(async (_req, res) => {
       const s: ServiceStatus = await deps.service.status()
+      deps.onStatus?.(s)
       sendJson(res, 200, s)
     })
   )
@@ -52,6 +57,9 @@ export const registerAdminRoutes = (router: IRouter, deps: AdminApiDeps): void =
     '/renew',
     asyncRoute(async (_req, res) => {
       const out = await deps.service.issueIfNeeded()
+      if (deps.onStatus) {
+        deps.onStatus(await deps.service.status())
+      }
       sendJson(res, 200, out)
     })
   )

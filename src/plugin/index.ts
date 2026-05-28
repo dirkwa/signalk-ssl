@@ -7,7 +7,7 @@ import type { Plugin, PluginConstructor, ServerAPI } from '@signalk/server-api'
 import type { IRouter } from 'express'
 import { CertStore } from './storage.js'
 import { PassphraseSource } from './passphrase-source.js'
-import { SslService, discoverAdvertisedHostname } from './service.js'
+import { SslService, discoverAdvertisedHostname, type ServiceStatus } from './service.js'
 import { startRenewalScheduler, type SchedulerHandle } from './scheduler.js'
 import { buildPublicRoutes, registerAdminRoutes } from './api.js'
 import { buildConfigSchema, DEFAULT_CONFIG, type SignalkSslConfig } from './schema.js'
@@ -36,6 +36,33 @@ const resolveConfigPath = (app: ExtendedServerAPI, fallback: string): string => 
   return app.config?.configPath ?? fallback
 }
 
+/**
+ * One-line status for the admin plugin list. statusMessage() must be
+ * synchronous, so this formats a cached {@link ServiceStatus} snapshot rather
+ * than reading the cert state from disk. Describes issuance state — not config —
+ * so an operator can tell "issued and healthy" from "no cert yet" or "error" at
+ * a glance. `null` snapshot means startup hasn't produced one yet.
+ */
+export const formatStatusMessage = (status: ServiceStatus | null): string => {
+  if (status === null) {
+    return 'starting'
+  }
+  if (status.permissionWarning !== null) {
+    return `error: ${status.permissionWarning}`
+  }
+  if (!status.hasCa) {
+    return 'no CA yet — enable and save config'
+  }
+  if (!status.hasLeaf) {
+    return 'CA ready, no certificate issued yet'
+  }
+  const name = status.leafSansDns[0] ?? status.leafSansIp[0] ?? 'certificate'
+  const days = status.leafDaysRemaining
+  const expiry = days === null ? '' : ` · ${days.toString()}d left`
+  const restart = status.restartRequired ? ' · restart to apply' : ''
+  return `${name}${expiry}${restart}`
+}
+
 const pluginConstructor: PluginConstructor = (app: ServerAPI): Plugin => {
   const extended = app as ExtendedServerAPI
   // The raw hostname signalk-server uses for mDNS (EXTERNALHOST → proxy_host →
@@ -46,6 +73,17 @@ const pluginConstructor: PluginConstructor = (app: ServerAPI): Plugin => {
   let store: CertStore | null = null
   let passphrase: PassphraseSource | null = null
   let config: SignalkSslConfig = DEFAULT_CONFIG
+  // Cached snapshot for the synchronous statusMessage(); refreshed after each
+  // issue attempt. Approximate between refreshes (the webapp /status is live).
+  let lastStatus: ServiceStatus | null = null
+
+  const refreshStatus = async (svc: SslService): Promise<void> => {
+    try {
+      lastStatus = await svc.status()
+    } catch (e: unknown) {
+      app.error(`${PLUGIN_ID} status refresh failed: ${String(e)}`)
+    }
+  }
 
   const plugin: Plugin = {
     id: PLUGIN_ID,
@@ -87,6 +125,7 @@ const pluginConstructor: PluginConstructor = (app: ServerAPI): Plugin => {
           } catch (e: unknown) {
             app.error(`${PLUGIN_ID} initial issue failed: ${String(e)}`)
           }
+          await refreshStatus(svcLocal)
           // Start the scheduler only after init + initial issue have completed,
           // so a short test interval can't race against an uninitialised store.
           scheduler = startRenewalScheduler(svcLocal, logSchedulerError)
@@ -119,7 +158,10 @@ const pluginConstructor: PluginConstructor = (app: ServerAPI): Plugin => {
         store,
         passphrase,
         config,
-        getRawHostname: rawHostname
+        getRawHostname: rawHostname,
+        onStatus: (s) => {
+          lastStatus = s
+        }
       })
     },
 
@@ -131,13 +173,7 @@ const pluginConstructor: PluginConstructor = (app: ServerAPI): Plugin => {
     },
 
     statusMessage(): string {
-      if (service === null) {
-        return 'starting'
-      }
-      // statusMessage must be synchronous; just describe the cached config.
-      return `mode=${config.mode}, sans=${(
-        config.sans.dnsNames.length + config.sans.ipAddresses.length
-      ).toString()}`
+      return formatStatusMessage(lastStatus)
     }
   }
 
