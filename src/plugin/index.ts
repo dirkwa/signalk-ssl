@@ -20,6 +20,11 @@ const PLUGIN_DESCRIPTION =
 interface ExtendedServerAPI extends ServerAPI {
   readonly config?: {
     readonly configPath?: string
+    // signalk-server resolves this through EXTERNALHOST → settings.proxy_host →
+    // settings.hostname → os.hostname(). It is the exact source used by
+    // src/mdns.js to advertise on the LAN, so it's the right thing to suggest
+    // as a DNS SAN. Not in @signalk/server-api's typed surface.
+    readonly getExternalHostname?: () => string
   }
 }
 
@@ -92,7 +97,13 @@ const pluginConstructor: PluginConstructor = (app: ServerAPI): Plugin => {
       if (service === null || store === null || passphrase === null) {
         return
       }
-      registerAdminRoutes(router, { service, store, passphrase, config })
+      registerAdminRoutes(router, {
+        service,
+        store,
+        passphrase,
+        config,
+        getRawHostname: () => extended.config?.getExternalHostname?.() ?? ''
+      })
     },
 
     signalKApiRoutes(router: IRouter): IRouter {

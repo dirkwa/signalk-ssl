@@ -11,14 +11,17 @@ const Wizard = ({ existingStatus, onComplete, onNeedsUnlock }: Props): React.JSX
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [ips, setIps] = useState<string[]>([])
+  const [dnsName, setDnsName] = useState<string | null>(null)
 
   useEffect(() => {
     void getLocalIps()
       .then((r) => {
         setIps(r.ipAddresses)
+        setDnsName(r.dnsName)
       })
       .catch(() => {
         setIps([])
+        setDnsName(null)
       })
   }, [])
 
@@ -58,9 +61,18 @@ const Wizard = ({ existingStatus, onComplete, onNeedsUnlock }: Props): React.JSX
         <h2 className="text-lg font-semibold">1. Configure SANs in the plugin settings</h2>
         <p className="mt-2 text-slate-600">
           Open the SignalK plugin configuration screen for{' '}
-          <span className="font-mono">signalk-ssl</span> and add at least one DNS name (e.g.{' '}
-          <span className="font-mono">signalk.local</span>) and/or IP address. This server reports
-          the following local IPv4 addresses:
+          <span className="font-mono">signalk-ssl</span> and add at least one DNS name and/or IP
+          address.
+        </p>
+        {dnsName !== null && (
+          <p className="mt-3 text-slate-600">
+            This server is advertising on mDNS as <span className="font-mono">{dnsName}</span> —
+            adding it as a DNS SAN matches what phones and tablets see when they discover the server
+            on the local network.
+          </p>
+        )}
+        <p className="mt-3 text-slate-600">
+          This server reports the following local IPv4 addresses:
         </p>
         <ul className="mt-3 list-inside list-disc space-y-1 font-mono text-sm text-slate-700">
           {ips.length === 0 ? (
