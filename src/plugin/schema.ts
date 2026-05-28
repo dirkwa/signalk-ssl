@@ -1,4 +1,4 @@
-import { Type, type Static } from '@sinclair/typebox'
+import { Type, type Static, type TSchema } from '@sinclair/typebox'
 
 export const SansSchema = Type.Object(
   {
@@ -92,6 +92,30 @@ export const ConfigSchema = Type.Object(
     description: 'Manage a local Certificate Authority and HTTPS leaf certificates for this server.'
   }
 )
+
+/**
+ * Return the config schema with `dnsNames` pre-filled with the discovered mDNS
+ * hostname, so the server-rendered config form shows it as a suggested default
+ * before the plugin is enabled. Falls back to the static {@link ConfigSchema}
+ * (empty default) when no useful hostname is available.
+ *
+ * `schema()` is re-invoked by signalk-server on every config-screen load, so
+ * this is evaluated fresh each time — no caching, picks up hostname changes.
+ * A default is a non-forcing suggestion: a user who clears it gets an empty
+ * list, no provenance tracking needed.
+ */
+export const buildConfigSchema = (dnsDefault: string | null): TSchema => {
+  if (dnsDefault === null) {
+    return ConfigSchema
+  }
+  // ConfigSchema is a plain JSON object at runtime; clone so we never mutate the
+  // shared static schema, then swap in the hostname default.
+  const clone = structuredClone(ConfigSchema) as {
+    properties: { sans: { properties: { dnsNames: { default: string[] } } } }
+  }
+  clone.properties.sans.properties.dnsNames.default = [dnsDefault]
+  return clone as unknown as TSchema
+}
 
 export type SignalkSslConfig = Static<typeof ConfigSchema>
 

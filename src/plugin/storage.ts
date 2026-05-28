@@ -39,8 +39,7 @@ const FILES = {
   state: 'state.json',
   leafState: 'leaf-state.json',
   settings: 'settings.json',
-  convenience: 'passphrase.kdf.json',
-  hostnameSeeded: 'hostname-seeded.json'
+  convenience: 'passphrase.kdf.json'
 } as const
 
 const PEM_KEY_MODE = 0o600
@@ -177,22 +176,5 @@ export class CertStore {
   async writeConvenienceEnvelope(env: ConveniencePassphraseEnvelope): Promise<void> {
     await this.init()
     await atomicWrite(this.path('convenience'), JSON.stringify(env, null, 2), JSON_MODE)
-  }
-
-  /**
-   * Whether the plugin has already attempted its one-shot SAN seed (auto-adding
-   * the discovered mDNS hostname to an empty dnsNames list on first run). The
-   * marker makes the seed a one-time action: once it exists, a user who deletes
-   * the seeded name will not see it re-added on the next restart. Presence is
-   * the whole signal; the stored body is informational only.
-   */
-  async hasSeededHostname(): Promise<boolean> {
-    return (await readIfExists(this.path('hostnameSeeded'))) !== null
-  }
-
-  async markHostnameSeeded(hostname: string): Promise<void> {
-    await this.init()
-    const body = JSON.stringify({ hostname, seededAt: new Date().toISOString() }, null, 2)
-    await atomicWrite(this.path('hostnameSeeded'), body, JSON_MODE)
   }
 }

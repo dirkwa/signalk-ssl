@@ -63,60 +63,30 @@ describe('signalk-ssl plugin lifecycle', () => {
     await plugin.stop()
   })
 
-  it('seeds empty dnsNames with the discovered hostname on first run', async () => {
-    const app = makeMockAppWithHostname('pi5radar')
-    const plugin = pluginConstructor(app)
-    const restart = vi.fn()
-    plugin.start({}, restart)
-
-    const called = await waitFor(() => restart.mock.calls.length > 0)
-    expect(called).toBe(true)
-    const newConfig = restart.mock.calls[0]?.[0] as { sans: { dnsNames: string[] } }
-    expect(newConfig.sans.dnsNames).toEqual(['pi5radar.local'])
-    await plugin.stop()
+  it('schema() injects the discovered hostname as the dnsNames default', () => {
+    const plugin = pluginConstructor(makeMockAppWithHostname('pi5radar'))
+    const schema = plugin.schema as () => {
+      properties: { sans: { properties: { dnsNames: { default: string[] } } } }
+    }
+    expect(schema().properties.sans.properties.dnsNames.default).toEqual(['pi5radar.local'])
   })
 
-  it('does not re-seed after the marker is written (user may have deleted it)', async () => {
-    // First run seeds and restarts.
-    const app1 = makeMockAppWithHostname('pi5radar')
-    const plugin1 = pluginConstructor(app1)
-    const restart1 = vi.fn()
-    plugin1.start({}, restart1)
-    expect(await waitFor(() => restart1.mock.calls.length > 0)).toBe(true)
-    await plugin1.stop()
-
-    // Second run: marker exists. Even with still-empty SANs (simulating a user
-    // who deleted the seeded name), the plugin must not seed again.
-    const app2 = makeMockAppWithHostname('pi5radar')
-    const plugin2 = pluginConstructor(app2)
-    const restart2 = vi.fn()
-    plugin2.start({}, restart2)
-
-    const debugSpy = app2.debug as unknown as ReturnType<typeof vi.fn>
-    // Wait for the issue flow to run (proves start() got past the seed check).
-    await waitFor(() =>
-      debugSpy.mock.calls.some(
-        (args: unknown[]) => typeof args[0] === 'string' && args[0].includes('issueIfNeeded')
-      )
-    )
-    expect(restart2).not.toHaveBeenCalled()
-    await plugin2.stop()
+  it('schema() falls back to an empty dnsNames default when no hostname is available', () => {
+    // makeMockApp has no config.getExternalHostname, so rawHostname() is ''.
+    const plugin = pluginConstructor(makeMockApp())
+    const schema = plugin.schema as () => {
+      properties: { sans: { properties: { dnsNames: { default: string[] } } } }
+    }
+    expect(schema().properties.sans.properties.dnsNames.default).toEqual([])
   })
 
-  it('does not seed when the user already configured SANs', async () => {
-    const app = makeMockAppWithHostname('pi5radar')
-    const plugin = pluginConstructor(app)
-    const restart = vi.fn()
-    plugin.start({ sans: { dnsNames: ['boat.local'], ipAddresses: [] } }, restart)
-
-    const debugSpy = app.debug as unknown as ReturnType<typeof vi.fn>
-    await waitFor(() =>
-      debugSpy.mock.calls.some(
-        (args: unknown[]) => typeof args[0] === 'string' && args[0].includes('issueIfNeeded')
-      )
-    )
-    expect(restart).not.toHaveBeenCalled()
-    await plugin.stop()
+  it('schema() does not inject a default for an undiscoverable hostname', () => {
+    // A bare container-ID hostname yields no useful suggestion.
+    const plugin = pluginConstructor(makeMockAppWithHostname('f65aaa23e9ff'))
+    const schema = plugin.schema as () => {
+      properties: { sans: { properties: { dnsNames: { default: string[] } } } }
+    }
+    expect(schema().properties.sans.properties.dnsNames.default).toEqual([])
   })
 
   it('logs via app.error when store.init() fails instead of rejecting unhandled', async () => {
