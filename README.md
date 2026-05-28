@@ -31,7 +31,7 @@ The Appstore installs plugins with `npm install --ignore-scripts`, so this packa
    - **Passphrase mode** — `convenience` is the default and just works.
    - Defaults for CA validity (10 years), leaf validity (397 days), renewal threshold (30 days), clock-skew backdate (24 hours) are fine for most boats.
 3. Save the config. The plugin generates the CA, signs a leaf certificate, and writes both to SignalK's TLS path (`ssl-cert.pem`, `ssl-key.pem`, `ssl-chain.pem` in the configured config directory).
-4. Open the plugin webapp at `/plugins/signalk-ssl/`.
+4. Open the plugin webapp at `/signalk-ssl/`.
 5. Restart SignalK so the new certificate is picked up by the HTTPS listener. (The webapp shows a banner reminding you.)
 
 ## Distribute the CA to phones
@@ -76,7 +76,7 @@ or `webapp` mode first.
 
 ## Routes
 
-- `GET /plugins/signalk-ssl/` — webapp (admin auth required)
+- `GET /signalk-ssl/` — webapp static files (served by signalk-server at the module name, admin auth required)
 - `GET /plugins/signalk-ssl/status` — JSON status (admin auth required)
 - `POST /plugins/signalk-ssl/renew` — issue / renew leaf (admin auth required)
 - `POST /plugins/signalk-ssl/unlock` — supply passphrase (webapp mode, admin auth required)
