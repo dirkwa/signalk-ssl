@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { mkdtemp, rm } from 'node:fs/promises'
+import { mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import type { ServerAPI } from '@signalk/server-api'
@@ -117,6 +117,35 @@ describe('signalk-ssl plugin lifecycle', () => {
     )
     expect(restart).not.toHaveBeenCalled()
     await plugin.stop()
+  })
+
+  it('logs via app.error when store.init() fails instead of rejecting unhandled', async () => {
+    // Point the data dir at a child of a regular file so mkdir() fails with
+    // ENOTDIR — store.init() rejects, exercising the terminal .catch.
+    const filePath = join(dataDir, 'not-a-dir')
+    await writeFile(filePath, 'x')
+    const app = makeMockApp({ getDataDirPath: () => join(filePath, 'child') })
+
+    const unhandled = vi.fn()
+    process.on('unhandledRejection', unhandled)
+    try {
+      const plugin = pluginConstructor(app)
+      plugin.start({}, () => undefined)
+
+      const errorSpy = app.error as unknown as ReturnType<typeof vi.fn>
+      const logged = await waitFor(() =>
+        errorSpy.mock.calls.some(
+          (args: unknown[]) => typeof args[0] === 'string' && args[0].includes('startup failed')
+        )
+      )
+      expect(logged).toBe(true)
+      // Let any stray microtasks flush, then assert nothing went unhandled.
+      await new Promise<void>((resolve) => setTimeout(resolve, 20))
+      expect(unhandled).not.toHaveBeenCalled()
+      await plugin.stop()
+    } finally {
+      process.off('unhandledRejection', unhandled)
+    }
   })
 })
 

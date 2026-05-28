@@ -105,47 +105,57 @@ const pluginConstructor: PluginConstructor = (app: ServerAPI): Plugin => {
       const logSchedulerError = (err: unknown): void => {
         app.error(`${PLUGIN_ID} scheduled renewal failed: ${String(err)}`)
       }
-      void storeLocal.init().then(async () => {
-        // First-run SAN seed must run before the issue flow: if it triggers a
-        // restart, start() runs again with the seeded config and the issue
-        // happens then. Bail out here so we don't issue against empty SANs and
-        // immediately get restarted out from under it.
-        try {
-          const rawHostname = extended.config?.getExternalHostname?.() ?? ''
-          const restarted = await maybeSeedHostname(
-            storeLocal,
-            cfgLocal,
-            rawHostname,
-            restart,
-            (msg) => {
-              app.debug(msg)
+      void storeLocal
+        .init()
+        .then(async () => {
+          // First-run SAN seed must run before the issue flow: if it triggers a
+          // restart, start() runs again with the seeded config and the issue
+          // happens then. Bail out here so we don't issue against empty SANs and
+          // immediately get restarted out from under it.
+          try {
+            const rawHostname = extended.config?.getExternalHostname?.() ?? ''
+            const restarted = await maybeSeedHostname(
+              storeLocal,
+              cfgLocal,
+              rawHostname,
+              restart,
+              (msg) => {
+                app.debug(msg)
+              }
+            )
+            if (restarted) {
+              return
             }
-          )
-          if (restarted) {
-            return
+          } catch (e: unknown) {
+            // A seed failure must never block cert issuance — log and continue.
+            app.error(`${PLUGIN_ID} hostname seed failed: ${String(e)}`)
           }
-        } catch (e: unknown) {
-          // A seed failure must never block cert issuance — log and continue.
-          app.error(`${PLUGIN_ID} hostname seed failed: ${String(e)}`)
-        }
-        try {
-          const warning = await svcLocal.checkWritePermissions()
-          if (warning !== null) {
-            app.error(`${PLUGIN_ID} permission warning: ${warning}`)
+          try {
+            const warning = await svcLocal.checkWritePermissions()
+            if (warning !== null) {
+              app.error(`${PLUGIN_ID} permission warning: ${warning}`)
+            }
+          } catch (e: unknown) {
+            app.error(`${PLUGIN_ID} permission probe failed: ${String(e)}`)
           }
-        } catch (e: unknown) {
-          app.error(`${PLUGIN_ID} permission probe failed: ${String(e)}`)
-        }
-        try {
-          const outcome = await svcLocal.issueIfNeeded()
-          app.debug(`${PLUGIN_ID} initial issueIfNeeded: ${JSON.stringify(outcome)}`)
-        } catch (e: unknown) {
-          app.error(`${PLUGIN_ID} initial issue failed: ${String(e)}`)
-        }
-        // Start the scheduler only after init + initial issue have completed,
-        // so a short test interval can't race against an uninitialised store.
-        scheduler = startRenewalScheduler(svcLocal, logSchedulerError)
-      })
+          try {
+            const outcome = await svcLocal.issueIfNeeded()
+            app.debug(`${PLUGIN_ID} initial issueIfNeeded: ${JSON.stringify(outcome)}`)
+          } catch (e: unknown) {
+            app.error(`${PLUGIN_ID} initial issue failed: ${String(e)}`)
+          }
+          // Start the scheduler only after init + initial issue have completed,
+          // so a short test interval can't race against an uninitialised store.
+          scheduler = startRenewalScheduler(svcLocal, logSchedulerError)
+        })
+        // Terminal guard: store.init() (mkdir on a read-only / UID-shifted data
+        // dir) or a throw from startRenewalScheduler would otherwise surface as
+        // an unhandled rejection. The per-block try/catch above keep the issue
+        // flow going; this only catches what they can't. scheduler is left null
+        // on failure (the assignment is the last statement), so stop() is safe.
+        .catch((e: unknown) => {
+          app.error(`${PLUGIN_ID} startup failed: ${String(e)}`)
+        })
 
       app.debug(`${PLUGIN_ID} started; data dir=${dataDir}; configPath=${configPath}`)
     },
