@@ -3,7 +3,8 @@ import { mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import type { ServerAPI } from '@signalk/server-api'
-import pluginConstructor from '../src/plugin/index.js'
+import pluginConstructor, { formatStatusMessage } from '../src/plugin/index.js'
+import type { ServiceStatus } from '../src/plugin/service.js'
 
 let dataDir: string
 
@@ -116,6 +117,59 @@ describe('signalk-ssl plugin lifecycle', () => {
     } finally {
       process.off('unhandledRejection', unhandled)
     }
+  })
+})
+
+describe('formatStatusMessage', () => {
+  const base: ServiceStatus = {
+    hasCa: true,
+    caFingerprint: 'AA:BB',
+    caCreatedAt: '2026-01-01T00:00:00.000Z',
+    hasLeaf: true,
+    leafExpiresAt: '2027-01-01T00:00:00.000Z',
+    leafDaysRemaining: 397,
+    leafSansDns: ['pi5radar.local'],
+    leafSansIp: [],
+    restartRequired: false,
+    permissionWarning: null
+  }
+
+  it('reports "starting" before the first status snapshot', () => {
+    expect(formatStatusMessage(null)).toBe('starting')
+  })
+
+  it('reports the cert name and days remaining when issued', () => {
+    expect(formatStatusMessage(base)).toBe('pi5radar.local · 397d left')
+  })
+
+  it('flags a pending restart', () => {
+    expect(formatStatusMessage({ ...base, restartRequired: true })).toBe(
+      'pi5radar.local · 397d left · restart to apply'
+    )
+  })
+
+  it('falls back to an IP SAN when there is no DNS SAN', () => {
+    expect(formatStatusMessage({ ...base, leafSansDns: [], leafSansIp: ['10.0.0.5'] })).toBe(
+      '10.0.0.5 · 397d left'
+    )
+  })
+
+  it('surfaces a permission warning as an error', () => {
+    expect(formatStatusMessage({ ...base, permissionWarning: 'cannot write certs' })).toBe(
+      'error: cannot write certs'
+    )
+  })
+
+  it('reports no CA before anything is generated', () => {
+    expect(formatStatusMessage({ ...base, hasCa: false, hasLeaf: false })).toBe(
+      'no CA yet — enable and save config'
+    )
+  })
+
+  it('reports CA-but-no-leaf', () => {
+    expect(formatStatusMessage({ ...base, hasLeaf: false, leafDaysRemaining: null })).toBe(
+      'CA ready, no certificate issued yet'
+    )
   })
 })
 
