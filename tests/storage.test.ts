@@ -95,6 +95,15 @@ describe('CertStore round-trip', () => {
     expect(back?.iterations).toBe(100)
   })
 
+  it('hostname-seeded marker is absent until written, then persists', async () => {
+    await store.init()
+    expect(await store.hasSeededHostname()).toBe(false)
+    await store.markHostnameSeeded('pi5radar.local')
+    expect(await store.hasSeededHostname()).toBe(true)
+    const raw = await readFile(join(dir, 'hostname-seeded.json'), 'utf8')
+    expect(raw).toContain('pi5radar.local')
+  })
+
   it('write does not leave a .tmp file behind', async () => {
     await store.writeSettings({
       schemaVersion: 1,
