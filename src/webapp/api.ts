@@ -36,7 +36,11 @@ export type RotateOutcome =
   | { kind: 'error'; message: string }
 
 const ADMIN_BASE = '/plugins/signalk-ssl'
-const PUBLIC_BASE = '/signalk/v1/api/ssl'
+// Public CA download is served from the /signalk-ssl/ prefix (the webapp static
+// mount), which is reachable without a SignalK login even when allow_readonly is
+// off — unlike /signalk/v1/api/*, which hard-401s tokenless requests. This is
+// the URL encoded into the QR code, so it must work for an unauthenticated phone.
+const PUBLIC_BASE = '/signalk-ssl'
 
 const json = async <T>(res: Response): Promise<T> => {
   if (!res.ok) {

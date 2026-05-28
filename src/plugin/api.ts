@@ -1,4 +1,4 @@
-import type { IRouter, Request, Response, NextFunction } from 'express'
+import type { IRouter, Request, Response, NextFunction, RequestHandler } from 'express'
 import { buildMobileconfig } from './mobileconfig.js'
 import type { SslService, ServiceStatus } from './service.js'
 import { discoverAdvertisedHostname, discoverLocalIps } from './service.js'
@@ -112,35 +112,54 @@ export const registerAdminRoutes = (router: IRouter, deps: AdminApiDeps): void =
   )
 }
 
+// Shared handlers for the public CA download, used by both route surfaces below.
+const sendCaCrt = (deps: ApiDeps): RequestHandler =>
+  asyncRoute(async (_req: Request, res: Response) => {
+    const ca = await deps.store.readCaState()
+    if (ca === null) {
+      sendJson(res, 404, { error: 'no CA configured' })
+      return
+    }
+    res.type('application/x-x509-ca-cert').send(ca.certificatePem)
+  })
+
+const sendCaMobileconfig = (deps: ApiDeps): RequestHandler =>
+  asyncRoute(async (_req: Request, res: Response) => {
+    const ca = await deps.store.readCaState()
+    if (ca === null) {
+      sendJson(res, 404, { error: 'no CA configured' })
+      return
+    }
+    const xml = buildMobileconfig(ca.certificatePem, {
+      caName: deps.config.commonName,
+      organization: deps.config.organization
+    })
+    res.type('application/x-apple-aspen-config').send(xml)
+  })
+
 /** Mounted by the server at /signalk/v1/api/* via signalKApiRoutes — read-only public. */
 export const buildPublicRoutes = (router: IRouter, deps: ApiDeps): IRouter => {
-  router.get(
-    '/ssl/ca.crt',
-    asyncRoute(async (_req, res) => {
-      const ca = await deps.store.readCaState()
-      if (ca === null) {
-        sendJson(res, 404, { error: 'no CA configured' })
-        return
-      }
-      res.type('application/x-x509-ca-cert').send(ca.certificatePem)
-    })
-  )
-
-  router.get(
-    '/ssl/ca.mobileconfig',
-    asyncRoute(async (_req, res) => {
-      const ca = await deps.store.readCaState()
-      if (ca === null) {
-        sendJson(res, 404, { error: 'no CA configured' })
-        return
-      }
-      const xml = buildMobileconfig(ca.certificatePem, {
-        caName: deps.config.commonName,
-        organization: deps.config.organization
-      })
-      res.type('application/x-apple-aspen-config').send(xml)
-    })
-  )
-
+  router.get('/ssl/ca.crt', sendCaCrt(deps))
+  router.get('/ssl/ca.mobileconfig', sendCaMobileconfig(deps))
   return router
+}
+
+/**
+ * Mount the public CA download on the raw Express app at /signalk-ssl/ca.*.
+ *
+ * The /signalk/v1/api/ssl/* surface (buildPublicRoutes) is fronted by
+ * signalk-server's `http_authorize` middleware, which hard-401s any tokenless
+ * request when `allow_readonly` is disabled — so a phone scanning the QR with
+ * no SignalK account gets "Unauthorized". The /signalk-ssl/ prefix (where the
+ * webapp static files live) is only under the permissive root middleware, so it
+ * stays reachable without auth even on hardened servers. We mount the CA files
+ * there so the QR-code flow works regardless of the security config.
+ */
+export interface RawRouteMounter {
+  get: (path: string, handler: RequestHandler) => unknown
+}
+
+export const registerPublicCaRoutes = (app: RawRouteMounter, deps: ApiDeps): void => {
+  app.get('/signalk-ssl/ca.crt', sendCaCrt(deps))
+  app.get('/signalk-ssl/ca.mobileconfig', sendCaMobileconfig(deps))
 }
