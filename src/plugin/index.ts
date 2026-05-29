@@ -34,6 +34,15 @@ interface ExtendedServerAPI extends ServerAPI {
     // src/mdns.js to advertise on the LAN, so it's the right thing to suggest
     // as a DNS SAN. Not in @signalk/server-api's typed surface.
     readonly getExternalHostname?: () => string
+    // signalk-server only binds HTTPS when settings.ssl is true. The plugin
+    // can issue and install a cert, but the server still serves plain HTTP
+    // until this flag is flipped — so the webapp surfaces a help panel for
+    // that case. Both fields are runtime-only, not in @signalk/server-api.
+    readonly settings?: {
+      readonly ssl?: boolean
+      readonly port?: number
+      readonly sslport?: number
+    }
   }
   // At runtime the plugin's `app` is the Express application, so we can mount a
   // raw route at a public path (outside the auth-guarded /signalk/v1/api/*).
@@ -118,7 +127,24 @@ const pluginConstructor: PluginConstructor = (app: ServerAPI): Plugin => {
       const configPath = resolveConfigPath(extended, dataDir)
       store = new CertStore(dataDir)
       passphrase = new PassphraseSource(config.passphraseMode, store)
-      service = new SslService({ store, passphrase, config, configPath })
+      service = new SslService({
+        store,
+        passphrase,
+        config,
+        configPath,
+        // Evaluated per /status call so an `ssl: true` flip + restart is
+        // reflected immediately (the webapp polls /status). Preserves null when
+        // the server doesn't expose settings.ssl — collapsing that to false
+        // would falsely trigger the enable-HTTPS panel on older servers.
+        getServerNetState: () => {
+          const settings = extended.config?.settings
+          return {
+            sslEnabled: typeof settings?.ssl === 'boolean' ? settings.ssl : null,
+            httpPort: typeof settings?.port === 'number' ? settings.port : null,
+            sslPort: typeof settings?.sslport === 'number' ? settings.sslport : null
+          }
+        }
+      })
 
       // Mount the public CA download on the raw Express app (outside the
       // auth-guarded /signalk/v1/api/*), so a phone scanning the QR can fetch

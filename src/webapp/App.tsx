@@ -5,6 +5,7 @@ import StatusDashboard from './components/StatusDashboard.js'
 import Distribution from './components/Distribution.js'
 import UnlockPanel from './components/UnlockPanel.js'
 import RotatePanel from './components/RotatePanel.js'
+import EnableHttpsPanel from './components/EnableHttpsPanel.js'
 
 type View = 'loading' | 'wizard' | 'dashboard' | 'unlock' | 'error'
 
@@ -56,6 +57,7 @@ const App = (): React.JSX.Element => {
 
       {view === 'dashboard' && status !== null && (
         <div className="space-y-6">
+          <EnableHttpsPanel status={status} />
           <StatusDashboard
             status={status}
             onChange={() => {

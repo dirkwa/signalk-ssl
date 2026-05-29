@@ -13,6 +13,10 @@ export interface Status {
   leafSansIp: string[]
   restartRequired: boolean
   permissionWarning: string | null
+  /** Null when the server doesn't expose the flag (e.g. older signalk-server). */
+  serverSslEnabled: boolean | null
+  serverHttpPort: number | null
+  serverSslPort: number | null
 }
 
 export interface LocalIps {

@@ -179,6 +179,69 @@ describe('SslService.issueIfNeeded', () => {
     svc.acknowledgeRestart()
     expect((await svc.status()).restartRequired).toBe(false)
   })
+
+  it('status exposes nulls for server net state when no accessor is wired', async () => {
+    const { svc } = await buildService()
+    const s = await svc.status()
+    expect(s.serverSslEnabled).toBeNull()
+    expect(s.serverHttpPort).toBeNull()
+    expect(s.serverSslPort).toBeNull()
+  })
+
+  it('status reflects the live server net state at each call', async () => {
+    dataDir = await mkdtemp(join(tmpdir(), 'signalk-ssl-svc-'))
+    configPath = await mkdtemp(join(tmpdir(), 'signalk-ssl-cfg-'))
+    const store = new CertStore(dataDir)
+    await store.init()
+    let sslEnabled = false
+    const svc = new SslService({
+      store,
+      passphrase: new PassphraseSource('env', store, {
+        env: { SIGNALK_SSL_PASSPHRASE: 'test-pp' }
+      }),
+      config: {
+        ...DEFAULT_CONFIG,
+        sans: { dnsNames: ['boat.local'], ipAddresses: [] }
+      },
+      configPath,
+      getServerNetState: () => ({ sslEnabled, httpPort: 80, sslPort: 443 })
+    })
+
+    const before = await svc.status()
+    expect(before.serverSslEnabled).toBe(false)
+    expect(before.serverHttpPort).toBe(80)
+    expect(before.serverSslPort).toBe(443)
+
+    // Simulate the user flipping ssl:true and restarting.
+    sslEnabled = true
+    const after = await svc.status()
+    expect(after.serverSslEnabled).toBe(true)
+  })
+
+  it('status preserves a null sslEnabled (older signalk-server that does not expose settings.ssl)', async () => {
+    dataDir = await mkdtemp(join(tmpdir(), 'signalk-ssl-svc-'))
+    configPath = await mkdtemp(join(tmpdir(), 'signalk-ssl-cfg-'))
+    const store = new CertStore(dataDir)
+    await store.init()
+    // The accessor mirrors the one in src/plugin/index.ts when settings.ssl is
+    // undefined — a real signalk-server that doesn't report the flag. Must
+    // come through as null, not coerced to false (which would trigger the
+    // enable-HTTPS panel on an unrelated server).
+    const svc = new SslService({
+      store,
+      passphrase: new PassphraseSource('env', store, {
+        env: { SIGNALK_SSL_PASSPHRASE: 'test-pp' }
+      }),
+      config: {
+        ...DEFAULT_CONFIG,
+        sans: { dnsNames: ['boat.local'], ipAddresses: [] }
+      },
+      configPath,
+      getServerNetState: () => ({ sslEnabled: null, httpPort: null, sslPort: null })
+    })
+    const s = await svc.status()
+    expect(s.serverSslEnabled).toBeNull()
+  })
 })
 
 describe('SslService.rotatePassphrase', () => {
