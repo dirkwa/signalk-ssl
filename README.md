@@ -9,7 +9,7 @@ SSL/TLS certificate management for [SignalK Node Server](https://signalk.org/).
 - **Local CA + trusted certs, zero terminal** — generates an EC Certificate Authority and signs HTTPS certificates for your boat's hostname and IPs, so browsers show a green padlock instead of a scary warning.
 - **One-scan device trust** — a built-in QR code installs the CA root on iOS (`.mobileconfig`) and Android / desktop (`.crt`); no SSH, no file copying, no per-device fiddling.
 - **Set-and-forget renewal** — certificates auto-renew before expiry and re-issue automatically when your SANs change, with a 24-hour clock-skew backdate so an offline boat's lagging phone clock never breaks trust.
-- **Smart, server-aware defaults** — pre-fills the certificate name with the exact `.local` hostname your server broadcasts on mDNS, and shows live certificate health (name + days remaining) right in the admin status line.
+- **Smart, server-aware defaults** — pre-fills the SAN fields with the exact `.local` hostname your server broadcasts on mDNS plus its private-LAN IPs, so the cert covers both name and IP out of the box, and shows live certificate health (name + days remaining) right in the admin status line.
 - **Encrypted at rest, your choice of key** — the CA private key is always stored as encrypted PKCS#8, with `convenience` (no typing), `env` (environment variable), or `webapp` (prompt-based) passphrase modes.
 - **Runs anywhere SignalK runs** — pure-JS, no native modules; works identically on bare-metal, systemd, and Docker / Podman installs, and is tuned for drop-in use with the SignalK Universal Installer.
 
@@ -19,7 +19,7 @@ SSL/TLS certificate management for [SignalK Node Server](https://signalk.org/).
 - Self-signed certs without a CA make every browser scream.
 - Doing it by hand means SSH, `openssl`, and `update-ca-certificates` per device — for non-technical boaters that's not happening.
 
-`signalk-ssl` collapses the whole flow into "open plugin → configure SANs → scan QR on each phone".
+`signalk-ssl` collapses the whole flow into "open plugin → save the pre-filled SANs → scan QR on each phone".
 
 ## Prerequisites
 
@@ -34,13 +34,12 @@ The Appstore installs plugins with `npm install --ignore-scripts`, so this packa
 
 ## Configure
 
-1. Enable the plugin in the SignalK admin UI.
-2. Open the plugin configuration screen and fill in:
-   - **SANs** — at least one DNS name (e.g. `signalk.local`, `boat.local`) and/or the boat's LAN IP. The webapp shows the discovered IPv4 addresses.
+1. Open the plugin configuration screen. The **SANs** fields come **pre-filled**: the `.local` hostname your server broadcasts on mDNS and the host's private-LAN IPv4 addresses are suggested as defaults, so most boats can leave them as-is. (They're suggestions — clear any you don't want, e.g. a VPN-overlay IP, before saving.)
+2. Review the rest:
    - **Passphrase mode** — `convenience` is the default and just works.
-   - Defaults for CA validity (10 years), leaf validity (397 days), renewal threshold (30 days), clock-skew backdate (24 hours) are fine for most boats.
-3. Save the config. The plugin generates the CA, signs a leaf certificate, and writes both to SignalK's TLS path (`ssl-cert.pem`, `ssl-key.pem`, `ssl-chain.pem` in the configured config directory).
-4. Open the plugin webapp at `/signalk-ssl/`.
+   - Defaults for CA validity (3650 days ≈ 10 years), leaf validity (397 days), renewal threshold (30 days), clock-skew backdate (24 hours) are fine for most boats.
+3. Save the config to enable the plugin. It generates the CA, signs a leaf certificate covering your SANs, and writes the cert to SignalK's TLS path (`ssl-cert.pem`, `ssl-key.pem`, `ssl-chain.pem` in the configured config directory). The admin status line then shows the cert name and days remaining.
+4. Open the plugin webapp from the admin **Webapps** tile (or at `/signalk-ssl/`).
 5. Restart SignalK so the new certificate is picked up by the HTTPS listener. (The webapp shows a banner reminding you.)
 
 ## Distribute the CA to phones
@@ -91,16 +90,16 @@ or `webapp` mode first.
 - `POST /plugins/signalk-ssl/unlock` — supply passphrase (webapp mode, admin auth required)
 - `POST /plugins/signalk-ssl/lock` — drop in-memory passphrase
 - `POST /plugins/signalk-ssl/rotate` — re-encrypt the CA key under a new passphrase (admin auth required)
-- `GET /signalk/v1/api/ssl/ca.crt` — **public** download of CA cert (PEM)
-- `GET /signalk/v1/api/ssl/ca.mobileconfig` — **public** download of Apple profile
+- `GET /signalk-ssl/ca.crt` — **public** download of CA cert (PEM)
+- `GET /signalk-ssl/ca.mobileconfig` — **public** download of Apple profile
 
-The two `/ssl/` paths are intentionally unauthenticated so phones without SignalK accounts can fetch the CA via the QR-coded URL. (`PUT`/`POST` on `/signalk/v1/api/*` is auto-protected by the server, so we can't accidentally expose a destructive endpoint here.)
+The two `ca.*` downloads are intentionally unauthenticated so phones without SignalK accounts can fetch the CA via the QR-coded URL. They are mounted on the raw Express app under the `/signalk-ssl/` prefix (where the webapp static files live), which sits behind only signalk-server's permissive root middleware. This matters: the obvious home for them — `/signalk/v1/api/ssl/*` — is fronted by middleware that returns **401** to any tokenless request when `allow_readonly` is disabled, which would break the QR flow on a hardened server. The `/signalk-ssl/` prefix stays reachable without a login regardless of the security config, and only `GET`s are exposed there.
 
 ## Container (Podman / Docker) notes
 
 - The plugin uses `app.getDataDirPath()`, which means the per-plugin data lives under SignalK's data volume — survives container rebuilds.
 - Certs land at `${app.config.configPath}/ssl-{cert,key,chain}.pem`, again on the data volume.
-- mDNS `.local` resolution does **not** work through Podman's default bridge network. Either run with `--network=host` or use IP-based SANs and DNS on your router. The webapp can show the LAN IP URL as a fallback when it detects this case.
+- mDNS `.local` resolution does **not** work through Podman's default bridge network. Either run with `--network=host` or reach the server by IP — the plugin pre-fills the host's private-LAN IPs as SANs, so the issued cert already covers the IP URL. (On a bridge network the auto-detected hostname may be the random container ID, in which case the hostname suggestion is suppressed and you rely on the IP SANs.)
 - For outbound trust **inside** the container (so the SignalK Node process trusts its own CA when calling itself or another boat service), set `NODE_EXTRA_CA_CERTS=/path/to/ca.crt` in the container env. Node reads this before plugins load, so the plugin can't set it on itself — the value must be in your Quadlet/Compose/run script.
 
 ## Troubleshooting
@@ -109,7 +108,7 @@ The two `/ssl/` paths are intentionally unauthenticated so phones without Signal
 
 Three usual causes:
 
-1. The leaf cert doesn't list the hostname in the SAN. Check the SANs in the plugin config; re-issue if you added one after the fact.
+1. The leaf cert doesn't list the name you browsed to in its SAN — e.g. you opened the server by IP but only the `.local` hostname is in the SANs (or vice versa). The cert must contain whatever you type in the address bar. Add the missing name/IP to the SANs in the plugin config and re-issue (**Renew now**).
 2. The phone's clock is more than 24 hours behind. This plugin backdates `notBefore` by 24h to soften this; if it's still too far off, fix NTP on the boat.
 3. The CA root isn't installed (or full trust isn't enabled in Settings → General → About → Certificate Trust Settings).
 
