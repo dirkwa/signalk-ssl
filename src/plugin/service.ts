@@ -30,8 +30,10 @@ export type RotateOutcome =
 
 /** Runtime snapshot of signalk-server's HTTP/HTTPS binding state. */
 export interface ServerNetState {
-  /** True when signalk-server is bound on HTTPS (settings.ssl === true). */
-  readonly sslEnabled: boolean
+  /** True/false when signalk-server reports settings.ssl, null when it doesn't
+   * (older server, or any case where the runtime can't tell). The webapp only
+   * shows the enable-HTTPS help on an explicit `false`, never on null. */
+  readonly sslEnabled: boolean | null
   /** Plain-HTTP port (signalk-server settings.port; default 3000). */
   readonly httpPort: number | null
   /** HTTPS port (signalk-server settings.sslport; default 443). */

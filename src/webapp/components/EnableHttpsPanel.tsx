@@ -54,7 +54,7 @@ const EnableHttpsPanel = ({ status }: Props): React.JSX.Element | null => {
         directly (e.g. <code>podman restart signalk-server</code>).
       </p>
       <p className="mt-3 text-sm text-amber-800">
-        Alternative: edit <code>~/.signalk/settings.json</code> and set{' '}
+        Alternative: edit your SignalK <code>settings.json</code>, set{' '}
         <code>&quot;ssl&quot;: true</code>, then restart.
       </p>
     </section>

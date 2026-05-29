@@ -133,18 +133,17 @@ const pluginConstructor: PluginConstructor = (app: ServerAPI): Plugin => {
         config,
         configPath,
         // Evaluated per /status call so an `ssl: true` flip + restart is
-        // reflected immediately (the webapp polls /status).
-        getServerNetState: () => ({
-          sslEnabled: extended.config?.settings?.ssl === true,
-          httpPort:
-            typeof extended.config?.settings?.port === 'number'
-              ? extended.config.settings.port
-              : null,
-          sslPort:
-            typeof extended.config?.settings?.sslport === 'number'
-              ? extended.config.settings.sslport
-              : null
-        })
+        // reflected immediately (the webapp polls /status). Preserves null when
+        // the server doesn't expose settings.ssl — collapsing that to false
+        // would falsely trigger the enable-HTTPS panel on older servers.
+        getServerNetState: () => {
+          const settings = extended.config?.settings
+          return {
+            sslEnabled: typeof settings?.ssl === 'boolean' ? settings.ssl : null,
+            httpPort: typeof settings?.port === 'number' ? settings.port : null,
+            sslPort: typeof settings?.sslport === 'number' ? settings.sslport : null
+          }
+        }
       })
 
       // Mount the public CA download on the raw Express app (outside the
