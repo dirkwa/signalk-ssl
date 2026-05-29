@@ -159,7 +159,16 @@ export interface RawRouteMounter {
   get: (path: string, handler: RequestHandler) => unknown
 }
 
-export const registerPublicCaRoutes = (app: RawRouteMounter, deps: ApiDeps): void => {
-  app.get('/signalk-ssl/ca.crt', sendCaCrt(deps))
-  app.get('/signalk-ssl/ca.mobileconfig', sendCaMobileconfig(deps))
+/**
+ * These routes are mounted once per process on the raw Express app (Express
+ * keeps handlers across plugin restarts). So the handlers must not close over a
+ * captured `deps`: a config save/restart swaps the plugin's config and store for
+ * fresh objects, and a stale closure would keep serving the old CA metadata.
+ * Take a `getDeps` accessor instead and resolve it per request.
+ */
+export const registerPublicCaRoutes = (app: RawRouteMounter, getDeps: () => ApiDeps): void => {
+  app.get('/signalk-ssl/ca.crt', (req, res, next) => sendCaCrt(getDeps())(req, res, next))
+  app.get('/signalk-ssl/ca.mobileconfig', (req, res, next) =>
+    sendCaMobileconfig(getDeps())(req, res, next)
+  )
 }

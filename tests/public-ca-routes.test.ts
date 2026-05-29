@@ -44,12 +44,27 @@ const depsWithCa = (caPem: string | null): ApiDeps =>
   }) as unknown as ApiDeps
 
 const invoke = async (handler: RequestHandler, res: Response): Promise<void> => {
-  await new Promise<void>((resolve) => {
-    handler({} as Request, res, () => {
-      resolve()
+  await new Promise<void>((resolve, reject) => {
+    let settled = false
+    const done = (err?: unknown): void => {
+      if (settled) return
+      settled = true
+      if (err !== undefined) {
+        reject(err instanceof Error ? err : new Error(JSON.stringify(err)))
+      } else {
+        resolve()
+      }
+    }
+    // asyncRoute calls next(err) on a thrown/rejected handler — surface it as a
+    // test failure instead of resolving silently.
+    handler({} as Request, res, (err?: unknown) => {
+      done(err)
     })
-    // Handlers are async via asyncRoute; give the microtask queue a tick.
-    setTimeout(resolve, 10)
+    // Handlers are async via asyncRoute; give the microtask queue a tick for
+    // handlers that complete by writing the response without calling next().
+    setTimeout(() => {
+      done()
+    }, 10)
   })
 }
 
@@ -64,7 +79,7 @@ const routeOf = (m: ReturnType<typeof makeMounter>, path: string): RequestHandle
 describe('registerPublicCaRoutes', () => {
   it('mounts the CA download at the public /signalk-ssl/ prefix', () => {
     const m = makeMounter()
-    registerPublicCaRoutes(m, depsWithCa('PEM'))
+    registerPublicCaRoutes(m, () => depsWithCa('PEM'))
     expect([...m.routes.keys()].sort()).toEqual([
       '/signalk-ssl/ca.crt',
       '/signalk-ssl/ca.mobileconfig'
@@ -73,7 +88,7 @@ describe('registerPublicCaRoutes', () => {
 
   it('serves the CA cert with the x509 MIME type', async () => {
     const m = makeMounter()
-    registerPublicCaRoutes(m, depsWithCa('CERT-PEM'))
+    registerPublicCaRoutes(m, () => depsWithCa('CERT-PEM'))
     const res = makeRes()
     await invoke(routeOf(m, '/signalk-ssl/ca.crt'), res)
     expect(res._type).toBe('application/x-x509-ca-cert')
@@ -82,7 +97,7 @@ describe('registerPublicCaRoutes', () => {
 
   it('serves a .mobileconfig with the Apple MIME type', async () => {
     const m = makeMounter()
-    registerPublicCaRoutes(m, depsWithCa('CERT-PEM'))
+    registerPublicCaRoutes(m, () => depsWithCa('CERT-PEM'))
     const res = makeRes()
     await invoke(routeOf(m, '/signalk-ssl/ca.mobileconfig'), res)
     expect(res._type).toBe('application/x-apple-aspen-config')
@@ -92,9 +107,28 @@ describe('registerPublicCaRoutes', () => {
 
   it('404s when no CA exists yet', async () => {
     const m = makeMounter()
-    registerPublicCaRoutes(m, depsWithCa(null))
+    registerPublicCaRoutes(m, () => depsWithCa(null))
     const res = makeRes()
     await invoke(routeOf(m, '/signalk-ssl/ca.crt'), res)
     expect(res._status).toBe(404)
+  })
+
+  it('reads deps fresh per request, so a config swap is reflected without remount', async () => {
+    // Simulate the once-per-process mount whose deps change on plugin restart:
+    // the accessor returns whatever `current` points at now.
+    let current = depsWithCa(null)
+    const m = makeMounter()
+    registerPublicCaRoutes(m, () => current)
+
+    const before = makeRes()
+    await invoke(routeOf(m, '/signalk-ssl/ca.crt'), before)
+    expect(before._status).toBe(404)
+
+    // A later start() would assign a new deps object with a CA present.
+    current = depsWithCa('CERT-PEM')
+    const after = makeRes()
+    await invoke(routeOf(m, '/signalk-ssl/ca.crt'), after)
+    expect(after._type).toBe('application/x-x509-ca-cert')
+    expect(after._body).toBe('CERT-PEM')
   })
 })

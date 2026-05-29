@@ -123,17 +123,18 @@ const pluginConstructor: PluginConstructor = (app: ServerAPI): Plugin => {
       // Mount the public CA download on the raw Express app (outside the
       // auth-guarded /signalk/v1/api/*), so a phone scanning the QR can fetch
       // the CA without a SignalK login even when allow_readonly is off. Once per
-      // process — Express keeps handlers across plugin restarts.
+      // process — Express keeps handlers across plugin restarts. The handlers
+      // read deps via an accessor so they pick up the current config/store after
+      // a restart instead of capturing the first start's objects.
       if (!publicCaMounted && typeof extended.get === 'function') {
-        registerPublicCaRoutes(
-          { get: extended.get.bind(extended) },
-          {
-            service,
-            store,
-            passphrase,
-            config
+        registerPublicCaRoutes({ get: extended.get.bind(extended) }, () => {
+          // start() always sets these before the routes can be hit; the closure
+          // reads them live so a restart's fresh objects are picked up.
+          if (service === null || store === null || passphrase === null) {
+            throw new Error(`${PLUGIN_ID} public CA route hit before start completed`)
           }
-        )
+          return { service, store, passphrase, config }
+        })
         publicCaMounted = true
       }
 
