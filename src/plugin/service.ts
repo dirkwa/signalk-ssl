@@ -28,6 +28,16 @@ export type RotateOutcome =
   | { readonly kind: 'wrong-passphrase' }
   | { readonly kind: 'error'; readonly message: string }
 
+/** Runtime snapshot of signalk-server's HTTP/HTTPS binding state. */
+export interface ServerNetState {
+  /** True when signalk-server is bound on HTTPS (settings.ssl === true). */
+  readonly sslEnabled: boolean
+  /** Plain-HTTP port (signalk-server settings.port; default 3000). */
+  readonly httpPort: number | null
+  /** HTTPS port (signalk-server settings.sslport; default 443). */
+  readonly sslPort: number | null
+}
+
 export interface ServiceStatus {
   readonly hasCa: boolean
   readonly caFingerprint: string | null
@@ -39,6 +49,13 @@ export interface ServiceStatus {
   readonly leafSansIp: readonly string[]
   readonly restartRequired: boolean
   readonly permissionWarning: string | null
+  /** Whether signalk-server is actually serving HTTPS. The plugin can install a
+   * cert and the server still serve plain HTTP if settings.ssl is false — the
+   * webapp surfaces help for that case. Null when the runtime can't tell. */
+  readonly serverSslEnabled: boolean | null
+  /** Ports the server reports for the help/URL hints. Both null when unknown. */
+  readonly serverHttpPort: number | null
+  readonly serverSslPort: number | null
 }
 
 export interface SslServiceDeps {
@@ -46,6 +63,10 @@ export interface SslServiceDeps {
   readonly passphrase: PassphraseSource
   readonly config: SignalkSslConfig
   readonly configPath: string
+  /** Snapshot of signalk-server's net state, evaluated at request time so a
+   * settings flip is reflected immediately. Optional — when absent the status
+   * exposes nulls and the webapp suppresses the help. */
+  readonly getServerNetState?: () => ServerNetState
 }
 
 const MS_PER_DAY = 24 * 60 * 60 * 1000
@@ -238,9 +259,22 @@ export class SslService {
     await installCerts(this.targets(), leaf.certificatePem, leaf.privateKeyPem, ca.certificatePem)
   }
 
+  private serverState(): {
+    sslEnabled: boolean | null
+    httpPort: number | null
+    sslPort: number | null
+  } {
+    if (this.deps.getServerNetState === undefined) {
+      return { sslEnabled: null, httpPort: null, sslPort: null }
+    }
+    const s = this.deps.getServerNetState()
+    return { sslEnabled: s.sslEnabled, httpPort: s.httpPort, sslPort: s.sslPort }
+  }
+
   async status(): Promise<ServiceStatus> {
     const caState = await this.deps.store.readCaState()
     const leafState = await this.deps.store.readLeafState()
+    const net = this.serverState()
     if (leafState === null) {
       return {
         hasCa: caState !== null,
@@ -252,7 +286,10 @@ export class SslService {
         leafSansDns: [],
         leafSansIp: [],
         restartRequired: this.restartRequired,
-        permissionWarning: this.permissionWarning
+        permissionWarning: this.permissionWarning,
+        serverSslEnabled: net.sslEnabled,
+        serverHttpPort: net.httpPort,
+        serverSslPort: net.sslPort
       }
     }
     const decision = needsRenewal(
@@ -270,7 +307,10 @@ export class SslService {
       leafSansDns: this.deps.config.sans.dnsNames.map((d) => sanitizeHostname(d).toLowerCase()),
       leafSansIp: this.deps.config.sans.ipAddresses,
       restartRequired: this.restartRequired,
-      permissionWarning: this.permissionWarning
+      permissionWarning: this.permissionWarning,
+      serverSslEnabled: net.sslEnabled,
+      serverHttpPort: net.httpPort,
+      serverSslPort: net.sslPort
     }
   }
 
