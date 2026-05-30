@@ -1,4 +1,4 @@
-import { describe, it, expect, afterEach } from 'vitest'
+import { describe, it, expect, afterEach, vi } from 'vitest'
 import { mkdtemp, readFile, rm, stat } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -70,6 +70,34 @@ describe('discoverPrivateLanIps', () => {
       if (!isPrivate(ip)) {
         expect(priv.has(ip)).toBe(false)
       }
+    }
+  })
+
+  it('returns [] when networkInterfaces() throws (firejail --net=none on some kernels)', async () => {
+    // GitHub-hosted ubuntu-latest under the signalk-plugin-registry harness
+    // hits libuv's `uv_interface_addresses returned Unknown system error 95`
+    // (EOPNOTSUPP). Treat the throw the same as "no interfaces found".
+    //
+    // ESM module namespaces are frozen, so spying on os.networkInterfaces
+    // doesn't intercept the named import inside service.ts. Use vi.doMock
+    // + dynamic import to swap the module before service.js is loaded.
+    vi.resetModules()
+    vi.doMock('node:os', async () => {
+      const real = await vi.importActual<typeof import('node:os')>('node:os')
+      return {
+        ...real,
+        networkInterfaces: () => {
+          throw new Error('uv_interface_addresses returned Unknown system error 95')
+        }
+      }
+    })
+    try {
+      const fresh = await import('../src/plugin/service.js')
+      expect(fresh.discoverLocalIps()).toEqual([])
+      expect(fresh.discoverPrivateLanIps()).toEqual([])
+    } finally {
+      vi.doUnmock('node:os')
+      vi.resetModules()
     }
   })
 })
