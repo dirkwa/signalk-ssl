@@ -339,7 +339,18 @@ const hashSans = (sans: ParsedSans): string => {
 
 export const discoverLocalIps = (): string[] => {
   const out = new Set<string>()
-  for (const addrs of Object.values(networkInterfaces())) {
+  // libuv's getifaddrs() throws ERR_SYSTEM_ERROR (errno 95, EOPNOTSUPP) on
+  // some sandboxed environments — observed on GitHub-hosted ubuntu-latest
+  // under `firejail --net=none` in the dirkwa SignalK plugin registry CI.
+  // The plugin's SAN-suggestion flow treats "no interfaces" as a no-op
+  // already; mirror that for "interface enumeration failed".
+  let ifaces: ReturnType<typeof networkInterfaces>
+  try {
+    ifaces = networkInterfaces()
+  } catch {
+    return []
+  }
+  for (const addrs of Object.values(ifaces)) {
     if (!addrs) {
       continue
     }
