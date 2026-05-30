@@ -8,6 +8,7 @@
   "files": [
     "dist",
     "public",
+    "doc",
     "README.md",
     "LICENSE"
   ],
@@ -47,6 +48,10 @@
   "signalk": {
     "displayName": "SignalK SSL",
     "appIcon": "./app-icon.svg",
+    "screenshots": [
+      "./doc/screenshots/1_signalk-ssl.png",
+      "./doc/screenshots/2_signalk-ssl.png"
+    ],
     "appstore": {
       "displayName": "SignalK SSL",
       "categories": [
