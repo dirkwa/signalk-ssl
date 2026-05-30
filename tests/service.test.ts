@@ -44,18 +44,29 @@ describe('discoverPrivateLanIps', () => {
     return a === 10 || (a === 172 && b >= 16 && b <= 31) || (a === 192 && b === 168)
   }
 
+  // Snapshot the OS view once. Each call to discoverLocalIps() re-reads
+  // os.networkInterfaces(); under sandboxes that thrash interfaces
+  // between calls (firejail --net=none on some GitHub-hosted runner
+  // kernels does — see signalk-plugin-registry CI logs for 0.8.0) the
+  // two `discoverLocalIps()` invocations the original tests made could
+  // disagree, surfacing as "all does not contain priv[i]" assertions.
+  const localIps = discoverLocalIps()
+  const privateIps = localIps.filter(isPrivate)
+
   it('returns only RFC-1918 private IPv4s, all drawn from discoverLocalIps', () => {
-    const all = new Set(discoverLocalIps())
-    const priv = discoverPrivateLanIps()
-    for (const ip of priv) {
+    const all = new Set(localIps)
+    for (const ip of privateIps) {
       expect(all.has(ip)).toBe(true)
       expect(isPrivate(ip)).toBe(true)
     }
+    // discoverPrivateLanIps() must agree with the same-snapshot filter
+    // result up to set membership.
+    expect(new Set(discoverPrivateLanIps())).toEqual(new Set(privateIps))
   })
 
   it('excludes any non-private address that discoverLocalIps surfaced', () => {
-    const priv = new Set(discoverPrivateLanIps())
-    for (const ip of discoverLocalIps()) {
+    const priv = new Set(privateIps)
+    for (const ip of localIps) {
       if (!isPrivate(ip)) {
         expect(priv.has(ip)).toBe(false)
       }
