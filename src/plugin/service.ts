@@ -36,7 +36,7 @@ export interface ServerNetState {
   readonly sslEnabled: boolean | null
   /** Plain-HTTP port (signalk-server settings.port; default 3000). */
   readonly httpPort: number | null
-  /** HTTPS port (signalk-server settings.sslport; default 443). */
+  /** HTTPS port (signalk-server settings.sslport; default 3443). */
   readonly sslPort: number | null
 }
 

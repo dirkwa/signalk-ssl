@@ -104,6 +104,12 @@ The two `ca.*` downloads are intentionally unauthenticated so phones without Sig
 
 ## Troubleshooting
 
+### "I turned on SSL and now the server is unreachable"
+
+Turning on HTTPS moves the server to SignalK's TLS port (`sslport`, default `3443`), **not** the `http://<host>:3000` you used before. Plain HTTP on the old port still works: it redirects to the HTTPS port. So first, browse to `https://<host>:<sslport>`.
+
+If that still fails with `ERR_SSL_PACKET_LENGTH_TOO_LONG` (a TLS client reaching a plaintext port), an externally advertised port disagrees with where TLS actually listens. If `EXTERNALPORT` or `proxy_port` is set (common in hand-rolled systemd units or reverse proxy setups), SignalK advertises that port to clients instead of the HTTPS port. Built-in TLS and an external or proxy TLS terminator are mutually exclusive: either let SignalK terminate TLS (clear `EXTERNALPORT` or `proxy_port`), or terminate TLS at the proxy and leave SignalK's `ssl` off. (Installs via the SignalK Universal Installer set these correctly and are not affected.)
+
 ### "iOS Safari says the certificate is invalid"
 
 Three usual causes:
