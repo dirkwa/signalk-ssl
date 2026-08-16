@@ -21,12 +21,26 @@ Build cycle order (preferred): `npm run format` → `npm run build:all` → `npm
 - `npm run format` — prettier (writes) + (no eslint --fix here — use `lint:fix` separately)
 - `npm run format:check` — non-mutating CI check
 - `npm run lint` / `npm run lint:fix` — ESLint flat config, typescript-eslint `strictTypeChecked` on `src/plugin/**`
-- `npm run typecheck` — `tsc --noEmit` for both plugin and webapp tsconfigs
+- `npm run typecheck` — `tsc --noEmit` for the plugin, webapp, and tooling tsconfigs
 - `npm run build:plugin` — `tsc` to `dist/plugin/`
 - `npm run build:webapp` — Vite build to `public/`
 - `npm run build:all` (alias `build`) — both, in order
 - `npm run test` / `npm run test:watch` — vitest
 - `npx vitest run --coverage` — coverage on `src/plugin/**`; target >90% on crypto/sans/needs-renewal
+
+**Every source file in this repo is TypeScript, tooling config included.**
+`eslint.config.ts` is loaded by ESLint through `jiti` (a direct ESLint
+dependency — no devDep of ours needed) and type-checked via
+`tsconfig.tools.json`, which `npm run typecheck` runs. `jiti` transpiles
+without checking types, so without that gate the `.ts` extension would claim a
+guarantee nothing enforced.
+
+`tsconfig.tools.json` is separate on purpose, not duplication: the main config
+sets `rootDir: "src"`, which makes a root-level file an error rather than
+something merely excluded, and it builds `NodeNext` while the flat-config
+packages resolve their types under `bundler`. It sets `"types": ["node"]`
+because the config reads `import.meta.dirname` — that was a real type error the
+untyped `.js` version had been hiding.
 
 ## Install contract (CRITICAL)
 

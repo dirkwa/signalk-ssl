@@ -21,7 +21,7 @@
     "build:webapp": "vite build",
     "build:all": "npm run build:plugin && npm run build:webapp",
     "build": "npm run build:all",
-    "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.webapp.json --noEmit",
+    "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.webapp.json --noEmit && tsc -p tsconfig.tools.json",
     "test": "vitest run",
     "test:watch": "vitest",
     "lint": "eslint .",

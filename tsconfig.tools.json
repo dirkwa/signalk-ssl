@@ -1,0 +1,24 @@
+// Type-checks the repo's root-level tooling config, which the main tsconfig
+// structurally cannot: it sets rootDir "src" so dist/ mirrors src/, and a file
+// outside rootDir is an error rather than something merely excluded.
+//
+// "bundler" resolution on purpose. eslint.config.ts is loaded by ESLint through
+// jiti, and the flat-config packages it imports resolve their type entry points
+// under bundler resolution, not the NodeNext the plugin builds with. Emitting
+// nothing keeps this a pure check: the config is verified, never compiled.
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "strict": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "noEmit": true,
+    // The config reads import.meta.dirname, which is Node's, not the DOM's.
+    // Without this the property does not exist on ImportMeta and the check
+    // fails — a real error the untyped .js config was hiding.
+    "types": ["node"]
+  },
+  "include": ["eslint.config.ts"]
+}
