@@ -106,9 +106,21 @@ The two `ca.*` downloads are intentionally unauthenticated so phones without Sig
 
 ### "I turned on SSL and now the server is unreachable"
 
-Turning on HTTPS moves the server to SignalK's TLS port (`sslport`, default `3443`), **not** the `http://<host>:3000` you used before. Plain HTTP on the old port still works: it redirects to the HTTPS port. So first, browse to `https://<host>:<sslport>`.
+Check the port first. Once HTTPS is on, the server listens on SignalK's TLS
+port — `sslport`, `3443` by default — so the `http://<host>:3000` address you
+had bookmarked is no longer where it lives. The old port does still answer and
+redirects across, but the direct address to try is `https://<host>:<sslport>`.
 
-If that still fails with `ERR_SSL_PACKET_LENGTH_TOO_LONG` (a TLS client reaching a plaintext port), an externally advertised port disagrees with where TLS actually listens. If `EXTERNALPORT` or `proxy_port` is set (common in hand-rolled systemd units or reverse proxy setups), SignalK advertises that port to clients instead of the HTTPS port. Built-in TLS and an external or proxy TLS terminator are mutually exclusive: either let SignalK terminate TLS (clear `EXTERNALPORT` or `proxy_port`), or terminate TLS at the proxy and leave SignalK's `ssl` off. (Installs via the SignalK Universal Installer set these correctly and are not affected.)
+If that fails with `ERR_SSL_PACKET_LENGTH_TOO_LONG`, the browser is speaking
+TLS to a port serving plaintext, which means the port SignalK advertises isn't
+the port TLS is actually on. Setting `EXTERNALPORT` or `proxy_port` — as
+hand-written systemd units and reverse-proxy setups often do — makes SignalK
+advertise that value instead of its HTTPS port.
+
+Only one component can terminate TLS. Either clear `EXTERNALPORT` and
+`proxy_port` and let SignalK do it, or terminate at the proxy and leave
+SignalK's `ssl` setting off. Installs made with the SignalK Universal Installer
+already have this right.
 
 ### "iOS Safari says the certificate is invalid"
 
@@ -147,4 +159,15 @@ That's the cost of rotating a CA. Every device needs to re-install the new root.
 
 ## License
 
-Apache-2.0
+signalk-ssl 0.9.0 and later is **source available, not open source**.
+See [LICENSE.md](LICENSE.md).
+
+**You may**, free of charge: run it on your own boat or fleet, private or
+commercial; use it for internal company operations; modify it for your own use;
+use it in education and research; and provide professional services around it.
+
+**You may not**: redistribute it, or publish a modified version of it to npm or
+anywhere else. Verbatim copies of official releases may be mirrored and cached.
+
+Versions 0.8.3 and earlier remain available under the Apache License 2.0 — see
+[LICENSE-APACHE-2.0-through-v0.8.3.txt](LICENSE-APACHE-2.0-through-v0.8.3.txt).
