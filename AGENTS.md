@@ -77,6 +77,37 @@ No `Co-Authored-By` lines. No "Generated with Claude Code" attribution.
 - **Trusted publishing only** — no `NPM_TOKEN` secret. Configure trusted publishing on npmjs.com for this package.
 - **`repository.url` must exactly match the GitHub repo URL** (npm provenance OIDC requirement). Currently `git+https://github.com/dirkwa/signalk-ssl.git`.
 
+## Licensing
+
+From **0.9.0** this plugin is source-available, not open source: use and
+modification are free, redistribution is not. `LICENSE.md` is authoritative.
+
+- **0.8.3 and earlier were Apache-2.0 and stay that way, permanently.** Never
+  rewrite history, retag old releases, or edit the license on an existing tag.
+  Apache-2.0's patent grant (§3) and redistribution rights (§4) for those
+  versions are irrevocable, and obscuring that weakens the current license
+  rather than strengthening it.
+- `LICENSE-APACHE-2.0-through-v0.8.3.txt` keeps that history discoverable in
+  the tarball. Do not delete it.
+- **Never propose returning to a permissive license** — that is the copyright
+  holder's decision alone.
+- `package.json` uses `"license": "SEE LICENSE IN LICENSE.md"`. This is not an
+  SPDX-listed license; inventing an identifier breaks tooling validation.
+- `CONTRIBUTING.md` carries an inbound contribution grant. Without it, merged
+  contributions fragment ownership and make this kind of decision impossible to
+  take again. The relicense had to work around exactly that: the one outside
+  contribution predating the grant (PR #33) was rewritten rather than
+  relicensed, because Apache-2.0 §5 lets you distribute a contribution but not
+  relicense it.
+- The license text derives from a plain-language template whose authors permit
+  adaptation only if all mention of their project is removed. It has been. Do
+  not add attribution to them back in.
+- **Runtime dependency licenses gate this.** A copyleft or share-alike runtime
+  dependency would override the arrangement. The production tree was audited at
+  relicense time: 53 packages, all MIT/ISC/BSD/Apache-2.0. Re-check before
+  adding a runtime dependency — devDependencies do not matter, since they are
+  never distributed.
+
 ## Plugin-specific gotchas
 
 ### Two route surfaces, two auth policies
