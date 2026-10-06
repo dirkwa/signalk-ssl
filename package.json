@@ -104,7 +104,7 @@
     "typescript": "^6.0.3",
     "typescript-eslint": "^8.33.1",
     "vite": "^8.0.14",
-    "vitest": "^4.1.7",
+    "vitest": "^5.0.2",
     "wouter": "^3.10.0",
     "zod": "^4.4.3"
   }
